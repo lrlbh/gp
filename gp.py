@@ -1,134 +1,164 @@
 import os.path
 import time
-
 import os
 from pathlib import Path
-
-import baostock as bs
 import pandas as pd
 import tl
 import tl.dir
-import atexit
 import tushare as ts
-from pathlib import Path
 from datetime import datetime
 
-# 保存数据的路径
-data_path = os.path.join(Path(__file__).resolve().parent, "data")
-# 股票列表的路径
-股票列表path = os.path.join(data_path, "股票列表.csv")
-# 单个股票数据的文件夹路径
-单个股票path = os.path.join(data_path, "单个股票")
+
+data_path = os.path.join(Path(__file__).resolve().parent, "data")  # 保存数据的路径
+单个股票path = os.path.join(data_path, "单个股票")  # 单个股票数据的文件夹路径
+股票列表path = os.path.join(data_path, "股票列表.csv")  # 股票列表的路径
+gdp_path = os.path.join(data_path, "gdp.csv")
+m2_path = os.path.join(data_path, "m2.csv")
 
 # Tushare Pro 的 token
-ts_token = "7d6491af2d48adca24c66e8ab50f30e90559fb9741e1508dff218f17"
-
+ts_token = "0e29e046df7990e93a881879bf0970f61aaa7cdaade91c97f4d6d412"
 # 初始化 Tushare Pro 的 API
 pro = ts.pro_api(ts_token)
 
 
-# 创建 Baostock 连接管理器，确保登录状态和退出时的清理
-def create_baostock_manager():
-    is_logged_in = False
+def get_m2(更新=False, 更新间隔S=60 * 60 * 24):
+    # 是否需要更新
+    if os.path.exists(m2_path):
+        # 获取最后修改时间戳
+        最后修改时间戳 = datetime.fromtimestamp(
+            Path(m2_path).stat().st_mtime
+        ).timestamp()
 
-    def login():
-        nonlocal is_logged_in
-        if is_logged_in:
-            return
+        if 更新 and time.time() - 最后修改时间戳 < 更新间隔S:
+            df = pd.read_csv(m2_path, encoding="utf_8_sig")
+            if len(df) >= 5999:
+                print("WAR: 股票列表数据可能溢出了")
+            return df
 
-        lg = bs.login()
-        if lg.error_code == "0":
-            is_logged_in = True
-        else:
-            raise ValueError(f"登录失败: {lg.error_msg}")
+    # 获取数据
+    print(f"更新M2 -> {m2_path}")
+    df = pro.cn_m(
+        **{"m": "", "start_m": "", "end_m": "", "limit": "", "offset": ""},
+        fields=[
+            "month",
+            "m0",
+            "m0_yoy",
+            "m0_mom",
+            "m1",
+            "m1_yoy",
+            "m1_mom",
+            "m2",
+            "m2_yoy",
+            "m2_mom",
+        ],
+    )
 
-    def logout():
-        nonlocal is_logged_in
-        if is_logged_in:
-            bs.logout()
-            is_logged_in = False
-            print("Baostock 连接已断开，状态已重置。")
+    # 写入到文件
+    tl.dir.ensure_path_exists(m2_path)
+    df.to_csv(m2_path, index=False, encoding="utf_8_sig")  # sig 带BOM的 UTF-8
+    # print(f"数据已成功保存至: {m2_path}")
+    if len(df) >= 5999:
+        print("WAR: M2数据可能溢出了")
 
-    return login, logout
-
-
-# 创建登录和退出函数
-login, logout = create_baostock_manager()
-# 结束时自动退出 Baostock 连接
-atexit.register(logout)
-
-
-def 股票代码转换(code):
-    """
-    将 Baostock 的股票代码转换为 Tushare Pro 的格式。
-    Baostock 格式: sz.000001
-    Tushare Pro 格式: 000001.SZ
-    """
-    if "." not in code:
-        raise ValueError(f"无效的股票代码格式: {code}")
-
-    # 转大写
-    code_upper = code.upper()
-
-    # 如果已经是 Tushare Pro 格式，直接返回
-    if code_upper.endswith((".SZ", ".SH", ".BJ")):
-        return code_upper
-
-    # 否则按 Baostock 格式转换
-    prefix, num = code_upper.split(".")
-    if prefix == "SZ":
-        return f"{num}.SZ"
-    elif prefix == "SH":
-        return f"{num}.SH"
-    elif prefix == "BJ":
-        return f"{num}.BJ"
-    else:
-        raise ValueError(f"未知的股票代码前缀: {prefix}")
+    return df
 
 
-# sz.000001,平安银行,1991-04-03,,1,1
-def get_股票列表(更新=False, 更新间隔S=60 * 60):
-    """
-    code (证券代码) --> sz.000001
-    code_name (证券名称) --> 平安银行 OR *ST国华
-    ipoDate (上市日期) --> 1991-04-03
-    outDate (退市日期) --> 2020-12-31 OR NaN
-    type (证券类型) --> 1:股票 2:指数 3:其他
-    status (上市状态) --> 1:在市 0:退市
-    """
+def get_gdp(更新=False, 更新间隔S=60 * 60 * 24):
+    # 是否需要更新
+    if os.path.exists(gdp_path):
+        # 获取最后修改时间戳
+        最后修改时间戳 = datetime.fromtimestamp(
+            Path(gdp_path).stat().st_mtime
+        ).timestamp()
 
-    # 文件存在、需要更新、且未超时，则直接加载
-    # 文件存在
+        if 更新 and time.time() - 最后修改时间戳 < 更新间隔S:
+            df = pd.read_csv(gdp_path, encoding="utf_8_sig")
+            if len(df) >= 5999:
+                print("WAR: 股票列表数据可能溢出了")
+            return df
+
+    # 获取数据
+    print(f"更新GDP -> {gdp_path}")
+    df = pro.cn_gdp(
+        **{"q": "", "start_q": "", "end_q": "", "limit": "", "offset": ""},
+        fields=[
+            "quarter",
+            "gdp",
+            "gdp_yoy",
+            "pi",
+            "pi_yoy",
+            "si",
+            "si_yoy",
+            "ti",
+            "ti_yoy",
+        ],
+    )
+
+    # 写入到文件
+    tl.dir.ensure_path_exists(gdp_path)
+    df.to_csv(gdp_path, index=False, encoding="utf_8_sig")  # sig 带BOM的 UTF-8
+    # print(f"数据已成功保存至: {gdp_path}")
+    if len(df) >= 5999:
+        print("WAR: GDP数据可能溢出了")
+
+    return df
+
+
+def get_股票列表(更新=False, 更新间隔S=60):
+
+    # 是否需要更新
     if os.path.exists(股票列表path):
         # 获取最后修改时间戳
         最后修改时间戳 = datetime.fromtimestamp(
             Path(股票列表path).stat().st_mtime
         ).timestamp()
 
-        # 是否需要更新
         if 更新 and time.time() - 最后修改时间戳 < 更新间隔S:
             df = pd.read_csv(股票列表path, encoding="utf_8_sig")
-            df["code"] = df["code"].apply(lambda x: 股票代码转换(x))
+            if len(df) >= 5999:
+                print("WAR: 股票列表数据可能溢出了")
             return df
 
-    # 更新数据
+    # 获取数据
     print(f"更新股票列表 -> {股票列表path}")
-    login()
+    df = pro.stock_basic(
+        **{
+            "ts_code": "",
+            "name": "",
+            "exchange": "",
+            "market": "",
+            "is_hs": "",
+            "list_status": "L,D,P,G",
+            "limit": "",
+            "offset": "",
+        },
+        fields=[
+            "ts_code",
+            "symbol",
+            "name",
+            "area",
+            "industry",
+            "cnspell",
+            "market",
+            "list_date",
+            "act_name",
+            "act_ent_type",
+            "delist_date",
+            "is_hs",
+            "list_status",
+            "curr_type",
+            "exchange",
+            "enname",
+            "fullname",
+        ],
+    )
 
-    # 获取完整股票列表
-    rs = bs.query_stock_basic()
-    data_list = []
-    while (rs.error_code == "0") & rs.next():
-        data_list.append(rs.get_row_data())
-
-    # 格式化数据为 DataFrame
-    df = pd.DataFrame(data_list, columns=rs.fields)
-    df["code"] = df["code"].apply(lambda x: 股票代码转换(x))
-
-    # 确保文件夹存在
+    # 写入到文件
     tl.dir.ensure_path_exists(股票列表path)
     df.to_csv(股票列表path, index=False, encoding="utf_8_sig")  # sig 带BOM的 UTF-8
-    print(f"数据已成功保存至: {股票列表path}")
+    # print(f"数据已成功保存至: {股票列表path}")
+    if len(df) >= 5999:
+        print("WAR: 股票列表数据可能溢出了")
 
     return df
 
@@ -136,48 +166,50 @@ def get_股票列表(更新=False, 更新间隔S=60 * 60):
 def 更新():
     退市列表 = []
     更新字典 = {}
+    更新失败的股票 = {}
 
     code_list = get_股票列表(True)
-    code_list = code_list[code_list["type"] == 1]  # 筛选股票
+    code_list = code_list[
+        code_list["ts_code"].str.endswith(("SH", "SZ"))
+    ]  # 筛选需要的股票
     data_list = []
 
-    # 通过强制拉去平安银行数据，判断交易日和最新交易日期
+    # 通过强制拉取平安银行数据，获取交易日和最新交易日期
     交易日 = (
         get_单个股票数据(code="000001.SZ", 强制更新=True)["trade_date"]
         .astype(str)
         .tolist()
     )
 
+    # 加载每只股票然后判断那些需要更新
     for row in code_list.itertuples():
-        code = row.code
+        code = row.ts_code
 
         # 部分股票没有数据，跳过
-        if code in ["600849.SH"]:
+        # 部分股票代码被回收复用的TS开头
+        if code.startswith("TS"):
             continue
 
         # 加载股票
         try:
             data_list.append(get_单个股票数据(code))
         except Exception as e:
-            if (
-                str(e)
-                == "抱歉，您访问接口(daily)频率超限(50次/分钟)，具体频次详情：https://tushare.pro/document/1?doc_id=108。"
-            ):
-                print("请求过快，等待10秒...")
-                time.sleep(10)
+            if "抱歉，您访问接口(daily)频率超限" in str(e):
+                print("请求过快，等待1.5秒...")
+                time.sleep(1.5)
             else:
                 raise e
 
-        if row.status == 0:  # 退市
+        # 忽略非上市股票
+        if row.list_status != "L":  # 退市
             退市列表.append(code)
             continue
-        
-        if data_list[-1]["trade_date"].values[-1]
 
+        # 统计需要更新股票
         最后日期 = str(data_list[-1]["trade_date"].values[-1])
         if 最后日期 != 交易日[-1]:
             for item in 交易日:
-                if item < 最后日期:
+                if item <= 最后日期:
                     continue
 
                 if item not in 更新字典:
@@ -185,10 +217,61 @@ def 更新():
 
                 更新字典[item].append(code)
 
-    print(f"退市数量: {len(退市列表)}")
-    print(f"需要更新天数: {len(更新字典)}")
     for key in 更新字典:
-        print(f"{key}: {更新字典[key]}")
+        if len(更新字典[key]) >= 500:
+            t_code = ""
+        else:
+            t_code = ",".join(更新字典[key])
+        df = pro.daily(
+            **{
+                "ts_code": t_code,
+                "trade_date": key,
+                "start_date": "",
+                "end_date": "",
+                "limit": "",
+                "offset": "",
+            },
+            fields=[
+                "ts_code",
+                "trade_date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "pre_close",
+                "change",
+                "pct_chg",
+                "vol",
+                "amount",
+            ],
+        )
+        # print(df)
+        for code in 更新字典[key]:
+            code_data = df[df["ts_code"] == code]
+            if code_data.empty:
+                if code not in 更新失败的股票:
+                    更新失败的股票[code] = []
+                更新失败的股票[code].append(key)
+
+            单个股票文件 = os.path.join(单个股票path, f"{code}.csv")
+            code_data.to_csv(
+                单个股票文件,
+                mode="a",  # 'a' 表示追加写入 (Append)
+                header=False,  # False 表示不要表头 (Columns)
+                index=False,  # False 表示不要行编号 (Index)
+                encoding="utf_8_sig",  # 防止中文乱码
+            )
+
+        # print(f"{key} {len(df)}")
+
+    需要更新股票 = set()
+    print(f"退市数量: {len(退市列表)}")
+    for key in 更新字典:
+        需要更新股票.update(更新字典[key])
+    #     print(f"{key}: {len(更新字典[key])}")
+    print(f"需要更新天数: {len(更新字典)}")
+    print(f"需要更新股票数量: {len(需要更新股票)} 失败数量: {len(更新失败的股票)} ")
+    print(f"更新失败股票: {更新失败的股票.keys()}")
 
 
 def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强制更新=False):
@@ -265,7 +348,7 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
         if "trade_date" in df.columns:  # 排序
             df = df.sort_values(by="trade_date", ascending=True).reset_index(drop=True)
         df.to_csv(单个股票文件, index=False, encoding="utf_8_sig")
-        print(f"数据已成功保存至: {单个股票文件}")
+        # print(f"数据已成功保存至: {单个股票文件}")
         return df
 
     raise Exception(f"空数据: {单个股票文件}")
