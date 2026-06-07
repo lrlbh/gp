@@ -7,20 +7,51 @@ import gp
 from datetime import datetime
 
 
-def 同比补偿(开始日期="1992"):
-    df_full = gp.get_gdp插值()
+def show_gdp_插值():
     df = gp.get_gdp()
-
-    df_full = df_full[df_full["quarter"] < "2000"]
-    df_full["quarter"] = pd.to_datetime(df_full["quarter"]) + pd.offsets.QuarterEnd(0)
-    df_full = df_full.sort_values(by="quarter", ascending=True).reset_index(drop=True)
-    plt.plot(df_full["quarter"], df_full["gdp"])
-
-    df = df[df["quarter"] < "2000"]
+    # df = df[df["quarter"] < "2000"]
     df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)
     df = df.sort_values(by="quarter", ascending=True).reset_index(drop=True)
-    plt.plot(df["quarter"], df["gdp"])
+
+    df_full = gp.get_gdp_插值()
+    # df_full = df_full[df_full["quarter"] < "2000"]
+    df_full["quarter"] = pd.to_datetime(df_full["quarter"]) + pd.offsets.QuarterEnd(0)
+    df_full = df_full.sort_values(by="quarter", ascending=True).reset_index(drop=True)
+
+    plt.plot(df["quarter"], df["gdp"], zorder=3)
+    plt.plot(df_full["quarter"], df_full["gdp"], zorder=2)
+
     plt.show()
+
+
+show_gdp_插值()
+
+
+def 同比补偿(开始日期="1990"):
+
+    ret = {}
+    # ret[开始日期 + "0101"] = None
+    # ret[datetime.now().strftime("%Y%m%d")] = None
+
+    # 获取gdp数据
+    df = gp.get_gdp_插值()
+
+    # 前一年的每个季度基础值
+    q1_基值 = df[df["quarter"] == str(int(开始日期) - 1) + "Q1"].gdp.item()
+    q2_基值 = df[df["quarter"] == str(int(开始日期) - 1) + "Q2"].gdp.item()
+    q3_基值 = df[df["quarter"] == str(int(开始日期) - 1) + "Q3"].gdp.item()
+    q4_基值 = df[df["quarter"] == str(int(开始日期) - 1) + "Q4"].gdp.item()
+    # print(f"{q1_基值:.0f}  {q2_基值:.0f}  {q3_基值:.0f}  {q4_基值:.0f}")
+
+    # 季度转日期
+    # df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)
+    # print(df)
+
+    总年数 = int(datetime.now().strftime("%Y")) - int(开始日期) + 1
+    for i in range(总年数):
+        当前年 = str(int(开始日期) + i)
+        t = df.loc[df["quarter"] == 当前年 + "Q1", "gdp"].values[0]
+        print(f"{当前年 + 'Q1'}   {t}")
 
     return
     # 返回值

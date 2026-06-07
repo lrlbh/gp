@@ -117,20 +117,26 @@ def get_gdp(更新=False, 更新间隔S=60 * 60 * 24):
     return df
 
 
-def get_gdp插值():
-    df = get_gdp()
+def get_gdp_插值():
+    """
+    补齐GDP季度数据：
+    1. 补齐早期（1952-1991）只有Q4的年份 -> Q1-Q3
+    2. 外推未来年份到当前年（基于最近5年Q4平均增速）
+    """
 
-    # ========== 1. 创建完整的季度索引 ==========
-    years = range(
-        df["quarter"].str[:4].astype(int).min(),
-        df["quarter"].str[:4].astype(int).max() + 1,
-    )
+    df = get_gdp(True)
+
+    current_year = datetime.now().year  # 2026
+
+    # ========== 1. 创建完整季度索引（从数据最早年到当前年） ==========
+    min_year = df["quarter"].str[:4].astype(int).min()
+    years = range(min_year, current_year + 1)
     full_quarters = [f"{y}Q{q}" for y in years for q in range(1, 5)]
 
     df_full = pd.DataFrame({"quarter": full_quarters})
     df_full = df_full.merge(df, on="quarter", how="left")
 
-    # ========== 2. 计算现代数据的平均季度比例 ==========
+    # ========== 2. 计算现代数据的平均季度比例（用于拆分累计值） ==========
     modern = df_full[df_full["quarter"].str[:4].astype(int) >= 1992].copy()
 
     ratios = {}
@@ -145,11 +151,7 @@ def get_gdp插值():
             4: 1.0,
         }
 
-    # 比例示例：gdp 的 Q1≈21.0%, Q2≈44.7%, Q3≈69.8% 的 Q4
-    # print("季度占Q4比例:", {k: {q: round(v, 4) for q, v in r.items()}
-    #                     for k, r in ratios.items()})
-
-    # ========== 3. 对早期只有Q4的年份进行拆分 ==========
+    # ========== 3. 补齐早期只有Q4的年份（1952-1991） ==========
     early_years = range(1952, 1992)
 
     for _, row in df_full.iterrows():
@@ -157,19 +159,13 @@ def get_gdp插值():
         q = int(row["quarter"][-1])
 
         if year in early_years and q == 4 and pd.notna(row["gdp"]):
+            # 拆分累计值
             for target_q in [1, 2, 3]:
                 target = f"{year}Q{target_q}"
                 idx = df_full[df_full["quarter"] == target].index[0]
                 for col in ["gdp", "pi", "si", "ti"]:
                     df_full.loc[idx, col] = row[col] * ratios[col][target_q]
-
-    # ========== 4. 处理同比增长率（可选） ==========
-    # 早期 Q1-Q3 没有去年同期，yoy 理论上应为 NaN
-    # 如果你需要填充，可以用该年 Q4 的 yoy 近似（假设全年增速均匀）
-    for _, row in df_full.iterrows():
-        year = int(row["quarter"][:4])
-        q = int(row["quarter"][-1])
-        if year in early_years and q == 4:
+            # 补齐yoy（用Q4的yoy填充Q1-Q3）
             for target_q in [1, 2, 3]:
                 target = f"{year}Q{target_q}"
                 idx = df_full[df_full["quarter"] == target].index[0]
@@ -177,7 +173,59 @@ def get_gdp插值():
                     if pd.notna(row[col]):
                         df_full.loc[idx, col] = row[col]
 
-    return df_full
+    # ========== 4. 外推未来年份到当前年 ==========
+    actual_years = df_full.dropna(subset=["gdp"])["quarter"].str[:4].astype(int)
+    last_actual_year = actual_years.max()
+
+    if last_actual_year < current_year:
+        # 计算最近5年Q4的平均同比增长率
+        recent_years = range(last_actual_year - 4, last_actual_year + 1)
+        recent_q4 = df_full[
+            (df_full["quarter"].str[:4].astype(int).isin(recent_years))
+            & (df_full["quarter"].str[-1] == "4")
+        ].sort_values("quarter")
+
+        avg_yoy = {}
+        for col in ["gdp", "pi", "si", "ti"]:
+            yoy_col = col + "_yoy"
+            valid_yoy = recent_q4[yoy_col].dropna()
+            if len(valid_yoy) >= 2:
+                avg_yoy[col] = valid_yoy.mean() / 100
+            else:
+                # 无yoy时，用实际值算复合增长率
+                vals = recent_q4[col].dropna()
+                if len(vals) >= 2:
+                    avg_yoy[col] = (vals.iloc[-1] / vals.iloc[0]) ** (
+                        1 / (len(vals) - 1)
+                    ) - 1
+                else:
+                    avg_yoy[col] = 0.05  # 默认5%
+
+        # 逐年后推
+        for year in range(last_actual_year + 1, current_year + 1):
+            prev_year_q4 = df_full[df_full["quarter"] == f"{year - 1}Q4"]
+            if prev_year_q4.empty:
+                continue
+
+            for col in ["gdp", "pi", "si", "ti"]:
+                prev_val = prev_year_q4[col].values[0]
+                if pd.isna(prev_val):
+                    continue
+
+                pred_q4 = prev_val * (1 + avg_yoy[col])
+
+                # 填充Q4
+                q4_idx = df_full[df_full["quarter"] == f"{year}Q4"].index[0]
+                df_full.loc[q4_idx, col] = pred_q4
+                df_full.loc[q4_idx, col + "_yoy"] = avg_yoy[col] * 100
+
+                # 用比例拆分Q1-Q3
+                for q in [1, 2, 3]:
+                    q_idx = df_full[df_full["quarter"] == f"{year}Q{q}"].index[0]
+                    df_full.loc[q_idx, col] = pred_q4 * ratios[col][q]
+                    df_full.loc[q_idx, col + "_yoy"] = avg_yoy[col] * 100
+
+    return df_full.sort_values("quarter").reset_index(drop=True)
 
 
 def get_股票列表(更新=False, 更新间隔S=60):
