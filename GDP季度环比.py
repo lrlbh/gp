@@ -28,7 +28,7 @@ for i in range(len(df["gdp"])):
     # print(f"{本月gdp} - {前三月gdp}")
 
     前三月gdp = 本月gdp
-# df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)  # 季度转日期
+df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)  # 季度转日期
 plt.plot(df["quarter"], gdp增长)
 plt.grid(True)
 plt.show()

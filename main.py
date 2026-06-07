@@ -7,59 +7,74 @@ import akshare as ak
 import gp
 
 
+def 同比补偿(df_in):
+    # 开始日期 = str(int(开始日期) - 1)
+    df_in = df_in[df_in["quarter"] > '1990']  # 2000 年后
+
+    # 时间升序
+    df = df_in.sort_values(by="quarter", ascending=True).reset_index(drop=True)
+
+    # 数据.开始年、结束年、总年份
+    start_time = int(df["quarter"].iloc[0][:-2])
+    end_time = int(df["quarter"].iloc[-1][:-2])
+    time_num = end_time - start_time + 1
+
+    # 用最后两个字符生成一个新列
+    df["q_label"] = df["quarter"].str[-2:]
+
+    # 通过新列分组
+    df_gro = df.groupby("q_label")
+
+    # 校验分组数量
+    if df_gro.ngroups != 4:
+        raise Exception("季度分组后不等于4!!!")
+
+    # print(df_fro.size()) # 每个分组的数据量
+
+    # 获取每个分组的数量
+    df_q1 = df_gro.get_group("Q1").reset_index(drop=True)
+    df_q2 = df_gro.get_group("Q2").reset_index(drop=True)
+    df_q3 = df_gro.get_group("Q3").reset_index(drop=True)
+    df_q4 = df_gro.get_group("Q4").reset_index(drop=True)
+
+
+    增长系数 = []
+    old_row = None
+    for index, row in df_q1.iterrows():
+        if index == 0:
+            old_row = row
+            continue
+
+        增长系数.append(row.gdp / old_row.gdp)
+        old_row = row
+    增长系数 = sum(增长系数) / len(增长系数)
+
+    print(增长系数)
+    print((df_q1['gdp'] / df_q1['gdp'].shift(1)).mean())
+    
+
+    # for i in range(time_num):
+    #     if df_q1["quarter"].str.contains(str(start_time + i)).any():
+    #         print(start_time + i)
+
+    print(len(df_q1))
+    print(len(df_q2))
+    print(len(df_q3))
+    print(len(df_q4))
+
+    # for name, df_qx in df_gro:
+    #     print(f"=== 当前正在访问的组是: {name} ===")
+    #     print(df_qx)  # 在这里对这一个季度的 DataFrame 做你想要的计算
+
+
 df = gp.get_gdp()
-df = df[df["quarter"] > "2010"]  # 2000 年后
-df = df.sort_values(by="quarter", ascending=True).reset_index(drop=True)  # 排序
+
+同比补偿(df)
 
 
-
-gdp增长 = []
-前三月gdp = 0
-for i in range(len(df["gdp"])):
-    本月gdp = df["gdp"][i]
-    if i == 0:
-        本月gdp = df["gdp"][i]
-        前三月gdp = 本月gdp
-    elif "Q1" in df["quarter"][i]:
-        本月gdp = df["gdp"][i] #- (df["gdp"][i - 1] - df["gdp"][i - 2])
-    else:
-        本月gdp = df["gdp"][i] - df["gdp"][i - 1]
-
-    # print(f"本月GDP{本月gdp}")
-
-    gdp增长.append(本月gdp - 前三月gdp)
-    # gdp增长.append(本月gdp)
-    print(f"{本月gdp} - {前三月gdp}")
-
-    前三月gdp = 本月gdp
-df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)  # 季度转日
-plt.plot(df["quarter"], gdp增长)
-plt.grid(True)
-plt.show()
-
-# print(df)
-
-# df = gp.get_m2()
-# df = df.iloc[::-1].reset_index(drop=True)
-# m2x = []
-# m2 = []
-# for row in df.itertuples():
-#     if row.month > 2000:
-#         m2x.append(int(row.month))
-#         m2.append(row.m2)
-
-
-# def normalize(series):
-#     return (series - series.min()) / (series.max() - series.min())
-
-
-# # 大家都变成了 0~1 的相对高度，完美自适应
-# plt.plot(df["month"], normalize(df["m2"]), label="M2 (Normalized)", color="blue")
-# plt.plot(df["month"], normalize(df["m1"]), label="M1 (Normalized)", color="orange")
-# plt.plot(df["month"], normalize(df["m0"]), label="M0 (Normalized)", color="green")
+# df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)  # 季度转日期
+# plt.plot(df["quarter"], gdp增长)
 # plt.grid(True)
 # plt.show()
-
-# 1/0
 
 # gp.更新()
