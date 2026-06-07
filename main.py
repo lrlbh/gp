@@ -1,4 +1,3 @@
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
@@ -8,57 +7,59 @@ import akshare as ak
 import gp
 
 
-# 拉取数据
-df = gp.pro.cn_gdp(**{
-    "q": "",
-    "start_q": "1990Q",
-    "end_q": "",
-    "limit": "",
-    "offset": ""
-}, fields=[
-    "quarter",
-    "gdp",
-    "gdp_yoy",
-    "pi",
-    "pi_yoy",
-    "si",
-    "si_yoy",
-    "ti",
-    "ti_yoy"
-])
-print(df)
+df = gp.get_gdp()
+df = df[df["quarter"] > "2010"]  # 2000 年后
+df = df.sort_values(by="quarter", ascending=True).reset_index(drop=True)  # 排序
 
 
 
-# 拉取数据
-df = gp.pro.cn_m(**{
-    "m": "",
-    "start_m": "19900101",
-    "end_m": "",
-    "limit": "",
-    "offset": ""
-}, fields=[
-    "month",
-    "m0",
-    "m0_yoy",
-    "m0_mom",
-    "m1",
-    "m1_yoy",
-    "m1_mom",
-    "m2",
-    "m2_yoy",
-    "m2_mom"
-])
-print(df)
+gdp增长 = []
+前三月gdp = 0
+for i in range(len(df["gdp"])):
+    本月gdp = df["gdp"][i]
+    if i == 0:
+        本月gdp = df["gdp"][i]
+        前三月gdp = 本月gdp
+    elif "Q1" in df["quarter"][i]:
+        本月gdp = df["gdp"][i] #- (df["gdp"][i - 1] - df["gdp"][i - 2])
+    else:
+        本月gdp = df["gdp"][i] - df["gdp"][i - 1]
 
-        
+    # print(f"本月GDP{本月gdp}")
+
+    gdp增长.append(本月gdp - 前三月gdp)
+    # gdp增长.append(本月gdp)
+    print(f"{本月gdp} - {前三月gdp}")
+
+    前三月gdp = 本月gdp
+df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)  # 季度转日
+plt.plot(df["quarter"], gdp增长)
+plt.grid(True)
+plt.show()
+
+# print(df)
+
+# df = gp.get_m2()
+# df = df.iloc[::-1].reset_index(drop=True)
+# m2x = []
+# m2 = []
+# for row in df.itertuples():
+#     if row.month > 2000:
+#         m2x.append(int(row.month))
+#         m2.append(row.m2)
 
 
-1/0
-
-gp.更新()
-
+# def normalize(series):
+#     return (series - series.min()) / (series.max() - series.min())
 
 
+# # 大家都变成了 0~1 的相对高度，完美自适应
+# plt.plot(df["month"], normalize(df["m2"]), label="M2 (Normalized)", color="blue")
+# plt.plot(df["month"], normalize(df["m1"]), label="M1 (Normalized)", color="orange")
+# plt.plot(df["month"], normalize(df["m0"]), label="M0 (Normalized)", color="green")
+# plt.grid(True)
+# plt.show()
 
+# 1/0
 
+# gp.更新()

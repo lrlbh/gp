@@ -22,6 +22,7 @@ pro = ts.pro_api(ts_token)
 
 
 def get_m2(更新=False, 更新间隔S=60 * 60 * 24):
+
     # 是否需要更新
     if os.path.exists(m2_path):
         # 获取最后修改时间戳
@@ -29,10 +30,16 @@ def get_m2(更新=False, 更新间隔S=60 * 60 * 24):
             Path(m2_path).stat().st_mtime
         ).timestamp()
 
-        if 更新 and time.time() - 最后修改时间戳 < 更新间隔S:
+        if not 更新:
             df = pd.read_csv(m2_path, encoding="utf_8_sig")
             if len(df) >= 5999:
-                print("WAR: 股票列表数据可能溢出了")
+                print("WAR: M2列表数据可能溢出了")
+            return df
+
+        if time.time() - 最后修改时间戳 < 更新间隔S:
+            df = pd.read_csv(m2_path, encoding="utf_8_sig")
+            if len(df) >= 5999:
+                print("WAR: M2列表数据可能溢出了")
             return df
 
     # 获取数据
@@ -71,10 +78,16 @@ def get_gdp(更新=False, 更新间隔S=60 * 60 * 24):
             Path(gdp_path).stat().st_mtime
         ).timestamp()
 
-        if 更新 and time.time() - 最后修改时间戳 < 更新间隔S:
+        if not 更新:
             df = pd.read_csv(gdp_path, encoding="utf_8_sig")
             if len(df) >= 5999:
-                print("WAR: 股票列表数据可能溢出了")
+                print("WAR: GDP列表数据可能溢出了")
+            return df
+
+        if time.time() - 最后修改时间戳 < 更新间隔S:
+            df = pd.read_csv(gdp_path, encoding="utf_8_sig")
+            if len(df) >= 5999:
+                print("WAR: GDP列表数据可能溢出了")
             return df
 
     # 获取数据
@@ -113,7 +126,13 @@ def get_股票列表(更新=False, 更新间隔S=60):
             Path(股票列表path).stat().st_mtime
         ).timestamp()
 
-        if 更新 and time.time() - 最后修改时间戳 < 更新间隔S:
+        if not 更新:
+            df = pd.read_csv(股票列表path, encoding="utf_8_sig")
+            if len(df) >= 5999:
+                print("WAR: 股票列表数据可能溢出了")
+            return df
+
+        if time.time() - 最后修改时间戳 < 更新间隔S:
             df = pd.read_csv(股票列表path, encoding="utf_8_sig")
             if len(df) >= 5999:
                 print("WAR: 股票列表数据可能溢出了")
@@ -165,6 +184,8 @@ def get_股票列表(更新=False, 更新间隔S=60):
 
 def 更新():
     退市列表 = []
+    暂停上市列表 = []
+    未交易列表 = []
     更新字典 = {}
     更新失败的股票 = {}
 
@@ -185,8 +206,19 @@ def 更新():
     for row in code_list.itertuples():
         code = row.ts_code
 
+        # 忽略非上市股票
+        if row.list_status == "D":
+            退市列表.append(code)
+            continue
+        if row.list_status == "P":
+            暂停上市列表.append(code)
+            continue
+        if row.list_status == "G":
+            未交易列表.append(code)
+            continue
+
         # 部分股票没有数据，跳过
-        # 部分股票代码被回收复用的TS开头
+        # 部分股票代码,被回收复用,TS开头
         if code.startswith("TS"):
             continue
 
@@ -199,11 +231,6 @@ def 更新():
                 time.sleep(1.5)
             else:
                 raise e
-
-        # 忽略非上市股票
-        if row.list_status != "L":  # 退市
-            退市列表.append(code)
-            continue
 
         # 统计需要更新股票
         最后日期 = str(data_list[-1]["trade_date"].values[-1])
@@ -265,7 +292,9 @@ def 更新():
         # print(f"{key} {len(df)}")
 
     需要更新股票 = set()
-    print(f"退市数量: {len(退市列表)}")
+    print(
+        f"股票总数: {len(code_list)} 退市: {len(退市列表)} 暂停上市: {len(暂停上市列表)} 未交易: {len(未交易列表)}"
+    )
     for key in 更新字典:
         需要更新股票.update(更新字典[key])
     #     print(f"{key}: {len(更新字典[key])}")
@@ -348,7 +377,7 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
         if "trade_date" in df.columns:  # 排序
             df = df.sort_values(by="trade_date", ascending=True).reset_index(drop=True)
         df.to_csv(单个股票文件, index=False, encoding="utf_8_sig")
-        # print(f"数据已成功保存至: {单个股票文件}")
+        print(f"数据已成功保存至: {单个股票文件}")
         return df
 
     raise Exception(f"空数据: {单个股票文件}")
