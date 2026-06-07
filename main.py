@@ -3,19 +3,47 @@ import pandas as pd
 import time
 import tushare as ts
 import numpy as np
-import akshare as ak
 import gp
+from datetime import datetime
 
 
-def 同比补偿(df_in):
-    # 开始日期 = str(int(开始日期) - 1)
-    df_in = df_in[df_in["quarter"] > '1990']  # 2000 年后
+def 同比补偿(开始日期="1992"):
+    df_full = gp.get_gdp插值()
+    df = gp.get_gdp()
+
+    df_full = df_full[df_full["quarter"] < "2000"]
+    df_full["quarter"] = pd.to_datetime(df_full["quarter"]) + pd.offsets.QuarterEnd(0)
+    df_full = df_full.sort_values(by="quarter", ascending=True).reset_index(drop=True)
+    plt.plot(df_full["quarter"], df_full["gdp"])
+
+    df = df[df["quarter"] < "2000"]
+    df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)
+    df = df.sort_values(by="quarter", ascending=True).reset_index(drop=True)
+    plt.plot(df["quarter"], df["gdp"])
+    plt.show()
+
+    return
+    # 返回值
+    ret = {}
+    ret[开始日期 + "0101"] = None
+    ret[datetime.now().strftime("%Y%m%d")] = None
+
+    q1_基值 = df_in[df_in["quarter"] == 开始日期 + "Q1"].gdp.item()
+    print(q1_基值)
+
+    q2_基值 = 0
+    q3_基值 = 0
+    q4_基值 = 0
+
+    return
+    # 筛选数据开始年
+    df = df_in[df_in["quarter"] > str(int(开始日期) - 1)]
 
     # 时间升序
-    df = df_in.sort_values(by="quarter", ascending=True).reset_index(drop=True)
+    df = df.sort_values(by="quarter", ascending=True).reset_index(drop=True)
 
     # 数据.开始年、结束年、总年份
-    start_time = int(df["quarter"].iloc[0][:-2])
+    start_time = 开始日期
     end_time = int(df["quarter"].iloc[-1][:-2])
     time_num = end_time - start_time + 1
 
@@ -31,27 +59,26 @@ def 同比补偿(df_in):
 
     # print(df_fro.size()) # 每个分组的数据量
 
-    # 获取每个分组的数量
+    # 获取每个分组的数据
     df_q1 = df_gro.get_group("Q1").reset_index(drop=True)
     df_q2 = df_gro.get_group("Q2").reset_index(drop=True)
     df_q3 = df_gro.get_group("Q3").reset_index(drop=True)
     df_q4 = df_gro.get_group("Q4").reset_index(drop=True)
 
+    # 每个季度的平均增速
+    df_q1_增长 = ((df_q1["gdp"] - df_q1["gdp"].shift(1)) / df_q1["gdp"].shift(1)).mean()
+    df_q2_增长 = ((df_q2["gdp"] - df_q2["gdp"].shift(1)) / df_q2["gdp"].shift(1)).mean()
+    df_q3_增长 = ((df_q3["gdp"] - df_q3["gdp"].shift(1)) / df_q3["gdp"].shift(1)).mean()
+    df_q4_增长 = ((df_q4["gdp"] - df_q4["gdp"].shift(1)) / df_q4["gdp"].shift(1)).mean()
+    # df_q1_增长 = (df_q1["gdp"] / df_q1["gdp"].shift(1)).mean()
+    # df_q2_增长 = (df_q2["gdp"] / df_q2["gdp"].shift(1)).mean()
+    # df_q3_增长 = (df_q3["gdp"] / df_q3["gdp"].shift(1)).mean()
+    # df_q4_增长 = (df_q4["gdp"] / df_q4["gdp"].shift(1)).mean()
 
-    增长系数 = []
-    old_row = None
-    for index, row in df_q1.iterrows():
-        if index == 0:
-            old_row = row
-            continue
-
-        增长系数.append(row.gdp / old_row.gdp)
-        old_row = row
-    增长系数 = sum(增长系数) / len(增长系数)
-
-    print(增长系数)
-    print((df_q1['gdp'] / df_q1['gdp'].shift(1)).mean())
-    
+    print(df_q1_增长)
+    print(df_q2_增长)
+    print(df_q3_增长)
+    print(df_q4_增长)
 
     # for i in range(time_num):
     #     if df_q1["quarter"].str.contains(str(start_time + i)).any():
@@ -67,9 +94,7 @@ def 同比补偿(df_in):
     #     print(df_qx)  # 在这里对这一个季度的 DataFrame 做你想要的计算
 
 
-df = gp.get_gdp()
-
-同比补偿(df)
+同比补偿()
 
 
 # df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)  # 季度转日期

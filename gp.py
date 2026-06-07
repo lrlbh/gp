@@ -117,6 +117,69 @@ def get_gdp(更新=False, 更新间隔S=60 * 60 * 24):
     return df
 
 
+def get_gdp插值():
+    df = get_gdp()
+
+    # ========== 1. 创建完整的季度索引 ==========
+    years = range(
+        df["quarter"].str[:4].astype(int).min(),
+        df["quarter"].str[:4].astype(int).max() + 1,
+    )
+    full_quarters = [f"{y}Q{q}" for y in years for q in range(1, 5)]
+
+    df_full = pd.DataFrame({"quarter": full_quarters})
+    df_full = df_full.merge(df, on="quarter", how="left")
+
+    # ========== 2. 计算现代数据的平均季度比例 ==========
+    modern = df_full[df_full["quarter"].str[:4].astype(int) >= 1992].copy()
+
+    ratios = {}
+    for col in ["gdp", "pi", "si", "ti"]:
+        modern["year"] = modern["quarter"].str[:4].astype(int)
+        modern["q"] = modern["quarter"].str[-1].astype(int)
+        pivot = modern.pivot(index="year", columns="q", values=col)
+        ratios[col] = {
+            1: (pivot[1] / pivot[4]).mean(),
+            2: (pivot[2] / pivot[4]).mean(),
+            3: (pivot[3] / pivot[4]).mean(),
+            4: 1.0,
+        }
+
+    # 比例示例：gdp 的 Q1≈21.0%, Q2≈44.7%, Q3≈69.8% 的 Q4
+    # print("季度占Q4比例:", {k: {q: round(v, 4) for q, v in r.items()}
+    #                     for k, r in ratios.items()})
+
+    # ========== 3. 对早期只有Q4的年份进行拆分 ==========
+    early_years = range(1952, 1992)
+
+    for _, row in df_full.iterrows():
+        year = int(row["quarter"][:4])
+        q = int(row["quarter"][-1])
+
+        if year in early_years and q == 4 and pd.notna(row["gdp"]):
+            for target_q in [1, 2, 3]:
+                target = f"{year}Q{target_q}"
+                idx = df_full[df_full["quarter"] == target].index[0]
+                for col in ["gdp", "pi", "si", "ti"]:
+                    df_full.loc[idx, col] = row[col] * ratios[col][target_q]
+
+    # ========== 4. 处理同比增长率（可选） ==========
+    # 早期 Q1-Q3 没有去年同期，yoy 理论上应为 NaN
+    # 如果你需要填充，可以用该年 Q4 的 yoy 近似（假设全年增速均匀）
+    for _, row in df_full.iterrows():
+        year = int(row["quarter"][:4])
+        q = int(row["quarter"][-1])
+        if year in early_years and q == 4:
+            for target_q in [1, 2, 3]:
+                target = f"{year}Q{target_q}"
+                idx = df_full[df_full["quarter"] == target].index[0]
+                for col in ["gdp_yoy", "pi_yoy", "si_yoy", "ti_yoy"]:
+                    if pd.notna(row[col]):
+                        df_full.loc[idx, col] = row[col]
+
+    return df_full
+
+
 def get_股票列表(更新=False, 更新间隔S=60):
 
     # 是否需要更新
