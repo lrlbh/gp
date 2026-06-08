@@ -24,113 +24,112 @@ def show_gdp_插值():
     plt.show()
 
 
-show_gdp_插值()
+# show_gdp_插值()
 
 
-def 同比补偿(开始日期="1990"):
+def 同比补偿(开始日期="2000"):
 
+    # 返回值
     ret = {}
-    # ret[开始日期 + "0101"] = None
-    # ret[datetime.now().strftime("%Y%m%d")] = None
 
     # 获取gdp数据
     df = gp.get_gdp_插值()
 
-    # 前一年的每个季度基础值
-    q1_基值 = df[df["quarter"] == str(int(开始日期) - 1) + "Q1"].gdp.item()
-    q2_基值 = df[df["quarter"] == str(int(开始日期) - 1) + "Q2"].gdp.item()
-    q3_基值 = df[df["quarter"] == str(int(开始日期) - 1) + "Q3"].gdp.item()
-    q4_基值 = df[df["quarter"] == str(int(开始日期) - 1) + "Q4"].gdp.item()
-    # print(f"{q1_基值:.0f}  {q2_基值:.0f}  {q3_基值:.0f}  {q4_基值:.0f}")
+    # # 前一年的 Q1~Q4 GDP数据
+    # 季度基值 = {"Q1": None, "Q2": None, "Q3": None, "Q4": None}
+    # for key in 季度基值:
+    #     季度基值[key] = df[df["quarter"] == str(int(开始日期) - 1) + key].gdp.item()
 
-    # 季度转日期
-    # df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)
-    # print(df)
+    # # 对比前一年的，同比增长数据
+    # 总年数 = int(datetime.now().strftime("%Y")) - int(开始日期) + 1
+    # for i in range(总年数):
+    #     当前年 = str(int(开始日期) + i)
+    #     for key in 季度基值:
+    #         本季gdp = df.loc[df["quarter"] == 当前年 + key, "gdp"].values[0]
+    #         本季gdp = (本季gdp - 季度基值[key]) / 季度基值[key]  # 增长百分比
+    #         ret[当前年 + key] = 本季gdp
+    #         # if key == "Q1":
+    #         #     print(本季gdp)
 
+
+    # ==================== 修改开始 ====================
+    # 1. 先在局部将 GDP 累计值 还原为 真正的单季当季值 (YTD -> Quarterly)
+    # 确保 df 是按时间正序排列的，方便差分
+    df_sorted = df.sort_values("quarter").reset_index(drop=True)
+    df_sorted["year"] = df_sorted["quarter"].str[:4]
+    
+    # 利用 groupby(year) 并在组内差分：如果是Q1就保持原样，Q2~Q4减去前一季
+    # 这样能完美处理每年一季度的特殊情况
+    df_sorted["gdp_diff"] = df_sorted.groupby("year")["gdp"].diff().fillna(df_sorted["gdp"])
+    
+    # 建立一个 季度->当季GDP 的映射字典，方便后续极速查询
+    gdp_map = dict(zip(df_sorted["quarter"], df_sorted["gdp_diff"]))
+
+    # 2. 获取基准年（前一年）的 Q1~Q4 当季 GDP 基值
+    季度基值 = {"Q1": None, "Q2": None, "Q3": None, "Q4": None}
+    for key in 季度基值:
+        基准季度 = str(int(开始日期) - 1) + key
+        if 基准季度 not in gdp_map:
+            raise ValueError(f"数据源中缺少基准季度: {基准季度}")
+        季度基值[key] = gdp_map[基准季度]
+
+    # 3. 对比基准年，计算定基增长数据
     总年数 = int(datetime.now().strftime("%Y")) - int(开始日期) + 1
     for i in range(总年数):
         当前年 = str(int(开始日期) + i)
-        t = df.loc[df["quarter"] == 当前年 + "Q1", "gdp"].values[0]
-        print(f"{当前年 + 'Q1'}   {t}")
+        for key in 季度基值:
+            当前季度 = 当前年 + key
+            if 当前季度 not in gdp_map:
+                continue  # 容错：如果最新年份的某些季度还没公布，直接跳过
+                
+            本季gdp_当季 = gdp_map[当前季度]
+            
+            # 使用还原后的【当季值】对比基准年的【当季值】计算增长百分比
+            本季gdp_增长率 = (本季gdp_当季 - 季度基值[key]) / 季度基值[key]
+            ret[当前季度] = 本季gdp_增长率
+            # if key == "Q1":
+            #     print(本季gdp_增长率)
+    # ==================== 修改结束 ====================
 
-    return
-    # 返回值
-    ret = {}
-    ret[开始日期 + "0101"] = None
-    ret[datetime.now().strftime("%Y%m%d")] = None
+    # 同比增长数据，插值到每一天
+    # 同比增长数据，插值到每一天
+    # 1. 准备季度数据
+    df = pd.DataFrame(list(ret.items()), columns=["quarter", "value"])
+    df["quarter"] = pd.PeriodIndex(df["quarter"], freq="Q")
+    df["date"] = (
+        df["quarter"].dt.to_timestamp(how="end").dt.normalize()
+    )  # 关键：normalize 去掉时间部分
+    df = df.sort_values("date").reset_index(drop=True)
 
-    q1_基值 = df_in[df_in["quarter"] == 开始日期 + "Q1"].gdp.item()
-    print(q1_基值)
+    # 2. 生成日度范围：2000-01-01 到 2026-12-31
+    end_time = datetime.now().strftime("%Y") + "-12-31"
+    daily_dates = pd.date_range(start=f"{开始日期}-01-01", end=end_time, freq="D")
 
-    q2_基值 = 0
-    q3_基值 = 0
-    q4_基值 = 0
+    # 3. 合并并插值
+    df_daily = pd.DataFrame({"date": daily_dates})
+    df_daily = df_daily.merge(df[["date", "value"]], on="date", how="left")
 
-    return
-    # 筛选数据开始年
-    df = df_in[df_in["quarter"] > str(int(开始日期) - 1)]
+    # 线性插值（季度末之间）
+    df_daily["ret_daily"] = df_daily["value"].interpolate(method="linear")
 
-    # 时间升序
-    df = df.sort_values(by="quarter", ascending=True).reset_index(drop=True)
+    # 4. 处理边界：2000-01-01 到 2000-03-31 没有前一个季度，用 bfill 填充
+    df_daily["ret_daily"] = df_daily["ret_daily"].bfill()
 
-    # 数据.开始年、结束年、总年份
-    start_time = 开始日期
-    end_time = int(df["quarter"].iloc[-1][:-2])
-    time_num = end_time - start_time + 1
+    # 清理
+    df_daily = df_daily.drop(columns=["value"])
 
-    # 用最后两个字符生成一个新列
-    df["q_label"] = df["quarter"].str[-2:]
+    # # 在图形中，对比插值前后
+    # # 在图形中，对比插值前后
+    df_daily["date"] = pd.to_datetime(df_daily["date"])
+    new_dict_end = {pd.Period(k, freq="Q").end_time: v for k, v in ret.items()}
+    plt.plot(df_daily["date"], df_daily["ret_daily"], zorder=2)
+    plt.plot(new_dict_end.keys(), new_dict_end.values(), zorder=3)
+    plt.show()
 
-    # 通过新列分组
-    df_gro = df.groupby("q_label")
-
-    # 校验分组数量
-    if df_gro.ngroups != 4:
-        raise Exception("季度分组后不等于4!!!")
-
-    # print(df_fro.size()) # 每个分组的数据量
-
-    # 获取每个分组的数据
-    df_q1 = df_gro.get_group("Q1").reset_index(drop=True)
-    df_q2 = df_gro.get_group("Q2").reset_index(drop=True)
-    df_q3 = df_gro.get_group("Q3").reset_index(drop=True)
-    df_q4 = df_gro.get_group("Q4").reset_index(drop=True)
-
-    # 每个季度的平均增速
-    df_q1_增长 = ((df_q1["gdp"] - df_q1["gdp"].shift(1)) / df_q1["gdp"].shift(1)).mean()
-    df_q2_增长 = ((df_q2["gdp"] - df_q2["gdp"].shift(1)) / df_q2["gdp"].shift(1)).mean()
-    df_q3_增长 = ((df_q3["gdp"] - df_q3["gdp"].shift(1)) / df_q3["gdp"].shift(1)).mean()
-    df_q4_增长 = ((df_q4["gdp"] - df_q4["gdp"].shift(1)) / df_q4["gdp"].shift(1)).mean()
-    # df_q1_增长 = (df_q1["gdp"] / df_q1["gdp"].shift(1)).mean()
-    # df_q2_增长 = (df_q2["gdp"] / df_q2["gdp"].shift(1)).mean()
-    # df_q3_增长 = (df_q3["gdp"] / df_q3["gdp"].shift(1)).mean()
-    # df_q4_增长 = (df_q4["gdp"] / df_q4["gdp"].shift(1)).mean()
-
-    print(df_q1_增长)
-    print(df_q2_增长)
-    print(df_q3_增长)
-    print(df_q4_增长)
-
-    # for i in range(time_num):
-    #     if df_q1["quarter"].str.contains(str(start_time + i)).any():
-    #         print(start_time + i)
-
-    print(len(df_q1))
-    print(len(df_q2))
-    print(len(df_q3))
-    print(len(df_q4))
-
-    # for name, df_qx in df_gro:
-    #     print(f"=== 当前正在访问的组是: {name} ===")
-    #     print(df_qx)  # 在这里对这一个季度的 DataFrame 做你想要的计算
+    return df_daily
 
 
 同比补偿()
 
-
-# df["quarter"] = pd.to_datetime(df["quarter"]) + pd.offsets.QuarterEnd(0)  # 季度转日期
-# plt.plot(df["quarter"], gdp增长)
-# plt.grid(True)
-# plt.show()
 
 # gp.更新()
