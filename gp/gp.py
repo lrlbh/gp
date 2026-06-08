@@ -5,253 +5,34 @@ from pathlib import Path
 import pandas as pd
 import tl
 import tl.dir
-import tushare as ts
 from datetime import datetime
-
-
-data_path = os.path.join(Path(__file__).resolve().parent, "data")  # 保存数据的路径
-单个股票path = os.path.join(data_path, "单个股票")  # 单个股票数据的文件夹路径
-股票列表path = os.path.join(data_path, "股票列表.csv")  # 股票列表的路径
-gdp_path = os.path.join(data_path, "gdp.csv")
-m2_path = os.path.join(data_path, "m2.csv")
-
-# Tushare Pro 的 token
-ts_token = "0e29e046df7990e93a881879bf0970f61aaa7cdaade91c97f4d6d412"
-# 初始化 Tushare Pro 的 API
-pro = ts.pro_api(ts_token)
-
-
-def get_m2(更新=False, 更新间隔S=60 * 60 * 24):
-
-    # 是否需要更新
-    if os.path.exists(m2_path):
-        # 获取最后修改时间戳
-        最后修改时间戳 = datetime.fromtimestamp(
-            Path(m2_path).stat().st_mtime
-        ).timestamp()
-
-        if not 更新:
-            df = pd.read_csv(m2_path, encoding="utf_8_sig")
-            if len(df) >= 5999:
-                print("WAR: M2列表数据可能溢出了")
-            return df
-
-        if time.time() - 最后修改时间戳 < 更新间隔S:
-            df = pd.read_csv(m2_path, encoding="utf_8_sig")
-            if len(df) >= 5999:
-                print("WAR: M2列表数据可能溢出了")
-            return df
-
-    # 获取数据
-    print(f"更新M2 -> {m2_path}")
-    df = pro.cn_m(
-        **{"m": "", "start_m": "", "end_m": "", "limit": "", "offset": ""},
-        fields=[
-            "month",
-            "m0",
-            "m0_yoy",
-            "m0_mom",
-            "m1",
-            "m1_yoy",
-            "m1_mom",
-            "m2",
-            "m2_yoy",
-            "m2_mom",
-        ],
-    )
-
-    # 写入到文件
-    tl.dir.ensure_path_exists(m2_path)
-    df.to_csv(m2_path, index=False, encoding="utf_8_sig")  # sig 带BOM的 UTF-8
-    # print(f"数据已成功保存至: {m2_path}")
-    if len(df) >= 5999:
-        print("WAR: M2数据可能溢出了")
-
-    return df
-
-
-def get_gdp(更新=False, 更新间隔S=60 * 60 * 24):
-    # 是否需要更新
-    if os.path.exists(gdp_path):
-        # 获取最后修改时间戳
-        最后修改时间戳 = datetime.fromtimestamp(
-            Path(gdp_path).stat().st_mtime
-        ).timestamp()
-
-        if not 更新:
-            df = pd.read_csv(gdp_path, encoding="utf_8_sig")
-            if len(df) >= 5999:
-                print("WAR: GDP列表数据可能溢出了")
-            return df
-
-        if time.time() - 最后修改时间戳 < 更新间隔S:
-            df = pd.read_csv(gdp_path, encoding="utf_8_sig")
-            if len(df) >= 5999:
-                print("WAR: GDP列表数据可能溢出了")
-            return df
-
-    # 获取数据
-    print(f"更新GDP -> {gdp_path}")
-    df = pro.cn_gdp(
-        **{"q": "", "start_q": "", "end_q": "", "limit": "", "offset": ""},
-        fields=[
-            "quarter",
-            "gdp",
-            "gdp_yoy",
-            "pi",
-            "pi_yoy",
-            "si",
-            "si_yoy",
-            "ti",
-            "ti_yoy",
-        ],
-    )
-
-    # 写入到文件
-    tl.dir.ensure_path_exists(gdp_path)
-    df.to_csv(gdp_path, index=False, encoding="utf_8_sig")  # sig 带BOM的 UTF-8
-    # print(f"数据已成功保存至: {gdp_path}")
-    if len(df) >= 5999:
-        print("WAR: GDP数据可能溢出了")
-
-    return df
-
-
-def get_gdp_插值():
-    """
-    补齐GDP季度数据：
-    1. 补齐早期（1952-1991）只有Q4的年份 -> Q1-Q3
-    2. 外推未来年份到当前年（基于最近5年Q4平均增速）
-    """
-
-    df = get_gdp(True)
-
-    current_year = datetime.now().year  # 2026
-
-    # ========== 1. 创建完整季度索引（从数据最早年到当前年） ==========
-    min_year = df["quarter"].str[:4].astype(int).min()
-    years = range(min_year, current_year + 1)
-    full_quarters = [f"{y}Q{q}" for y in years for q in range(1, 5)]
-
-    df_full = pd.DataFrame({"quarter": full_quarters})
-    df_full = df_full.merge(df, on="quarter", how="left")
-
-    # ========== 2. 计算现代数据的平均季度比例（用于拆分累计值） ==========
-    modern = df_full[df_full["quarter"].str[:4].astype(int) >= 1992].copy()
-
-    ratios = {}
-    for col in ["gdp", "pi", "si", "ti"]:
-        modern["year"] = modern["quarter"].str[:4].astype(int)
-        modern["q"] = modern["quarter"].str[-1].astype(int)
-        pivot = modern.pivot(index="year", columns="q", values=col)
-        ratios[col] = {
-            1: (pivot[1] / pivot[4]).mean(),
-            2: (pivot[2] / pivot[4]).mean(),
-            3: (pivot[3] / pivot[4]).mean(),
-            4: 1.0,
-        }
-
-    # ========== 3. 补齐早期只有Q4的年份（1952-1991） ==========
-    early_years = range(1952, 1992)
-
-    for _, row in df_full.iterrows():
-        year = int(row["quarter"][:4])
-        q = int(row["quarter"][-1])
-
-        if year in early_years and q == 4 and pd.notna(row["gdp"]):
-            # 拆分累计值
-            for target_q in [1, 2, 3]:
-                target = f"{year}Q{target_q}"
-                idx = df_full[df_full["quarter"] == target].index[0]
-                for col in ["gdp", "pi", "si", "ti"]:
-                    df_full.loc[idx, col] = row[col] * ratios[col][target_q]
-            # 补齐yoy（用Q4的yoy填充Q1-Q3）
-            for target_q in [1, 2, 3]:
-                target = f"{year}Q{target_q}"
-                idx = df_full[df_full["quarter"] == target].index[0]
-                for col in ["gdp_yoy", "pi_yoy", "si_yoy", "ti_yoy"]:
-                    if pd.notna(row[col]):
-                        df_full.loc[idx, col] = row[col]
-
-    # ========== 4. 外推未来年份到当前年 ==========
-    actual_years = df_full.dropna(subset=["gdp"])["quarter"].str[:4].astype(int)
-    last_actual_year = actual_years.max()
-
-    if last_actual_year < current_year:
-        # 计算最近5年Q4的平均同比增长率
-        recent_years = range(last_actual_year - 4, last_actual_year + 1)
-        recent_q4 = df_full[
-            (df_full["quarter"].str[:4].astype(int).isin(recent_years))
-            & (df_full["quarter"].str[-1] == "4")
-        ].sort_values("quarter")
-
-        avg_yoy = {}
-        for col in ["gdp", "pi", "si", "ti"]:
-            yoy_col = col + "_yoy"
-            valid_yoy = recent_q4[yoy_col].dropna()
-            if len(valid_yoy) >= 2:
-                avg_yoy[col] = valid_yoy.mean() / 100
-            else:
-                # 无yoy时，用实际值算复合增长率
-                vals = recent_q4[col].dropna()
-                if len(vals) >= 2:
-                    avg_yoy[col] = (vals.iloc[-1] / vals.iloc[0]) ** (
-                        1 / (len(vals) - 1)
-                    ) - 1
-                else:
-                    avg_yoy[col] = 0.05  # 默认5%
-
-        # 逐年后推
-        for year in range(last_actual_year + 1, current_year + 1):
-            prev_year_q4 = df_full[df_full["quarter"] == f"{year - 1}Q4"]
-            if prev_year_q4.empty:
-                continue
-
-            for col in ["gdp", "pi", "si", "ti"]:
-                prev_val = prev_year_q4[col].values[0]
-                if pd.isna(prev_val):
-                    continue
-
-                pred_q4 = prev_val * (1 + avg_yoy[col])
-
-                # 填充Q4
-                q4_idx = df_full[df_full["quarter"] == f"{year}Q4"].index[0]
-                df_full.loc[q4_idx, col] = pred_q4
-                df_full.loc[q4_idx, col + "_yoy"] = avg_yoy[col] * 100
-
-                # 用比例拆分Q1-Q3
-                for q in [1, 2, 3]:
-                    q_idx = df_full[df_full["quarter"] == f"{year}Q{q}"].index[0]
-                    df_full.loc[q_idx, col] = pred_q4 * ratios[col][q]
-                    df_full.loc[q_idx, col + "_yoy"] = avg_yoy[col] * 100
-
-    return df_full.sort_values("quarter").reset_index(drop=True)
+import gp.pub
 
 
 def get_股票列表(更新=False, 更新间隔S=60):
 
     # 是否需要更新
-    if os.path.exists(股票列表path):
+    if os.path.exists(gp.pub.股票列表path):
         # 获取最后修改时间戳
         最后修改时间戳 = datetime.fromtimestamp(
-            Path(股票列表path).stat().st_mtime
+            Path(gp.pub.股票列表path).stat().st_mtime
         ).timestamp()
 
         if not 更新:
-            df = pd.read_csv(股票列表path, encoding="utf_8_sig")
+            df = pd.read_csv(gp.pub.股票列表path, encoding="utf_8_sig")
             if len(df) >= 5999:
                 print("WAR: 股票列表数据可能溢出了")
             return df
 
         if time.time() - 最后修改时间戳 < 更新间隔S:
-            df = pd.read_csv(股票列表path, encoding="utf_8_sig")
+            df = pd.read_csv(gp.pub.股票列表path, encoding="utf_8_sig")
             if len(df) >= 5999:
                 print("WAR: 股票列表数据可能溢出了")
             return df
 
     # 获取数据
-    print(f"更新股票列表 -> {股票列表path}")
-    df = pro.stock_basic(
+    print(f"更新股票列表 -> {gp.pub.股票列表path}")
+    df = gp.pub.pro.stock_basic(
         **{
             "ts_code": "",
             "name": "",
@@ -284,8 +65,10 @@ def get_股票列表(更新=False, 更新间隔S=60):
     )
 
     # 写入到文件
-    tl.dir.ensure_path_exists(股票列表path)
-    df.to_csv(股票列表path, index=False, encoding="utf_8_sig")  # sig 带BOM的 UTF-8
+    tl.dir.ensure_path_exists(gp.pub.股票列表path)
+    df.to_csv(
+        gp.pub.股票列表path, index=False, encoding="utf_8_sig"
+    )  # sig 带BOM的 UTF-8
     # print(f"数据已成功保存至: {股票列表path}")
     if len(df) >= 5999:
         print("WAR: 股票列表数据可能溢出了")
@@ -360,7 +143,7 @@ def 更新():
             t_code = ""
         else:
             t_code = ",".join(更新字典[key])
-        df = pro.daily(
+        df = gp.pub.pro.daily(
             **{
                 "ts_code": t_code,
                 "trade_date": key,
@@ -391,7 +174,7 @@ def 更新():
                     更新失败的股票[code] = []
                 更新失败的股票[code].append(key)
 
-            单个股票文件 = os.path.join(单个股票path, f"{code}.csv")
+            单个股票文件 = os.path.join(gp.pub.单个股票path, f"{code}.csv")
             code_data.to_csv(
                 单个股票文件,
                 mode="a",  # 'a' 表示追加写入 (Append)
@@ -430,7 +213,7 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
     """
 
     # 生成文件名
-    单个股票文件 = os.path.join(单个股票path, f"{code}.csv")
+    单个股票文件 = os.path.join(gp.pub.单个股票path, f"{code}.csv")
 
     # 获取数据
     if os.path.exists(单个股票文件) and not 强制更新:
@@ -442,7 +225,7 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
     limit = 6000  # 每次最大6000条
     while True:
         # 拉取数据
-        df = pro.daily(
+        df = gp.pub.pro.daily(
             **{
                 "ts_code": code,
                 "trade_date": "",  # 获取指定某天的数据，忽略
