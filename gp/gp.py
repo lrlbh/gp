@@ -277,6 +277,36 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
     raise Exception(f"空数据: {单个股票文件}")
 
 
+def 后复权数据(code, 日期="1999"):
+    df = get_单个股票数据(code)
+
+    # 开始日期
+    日期 = int(日期 + "0101")
+    df = df[df["trade_date"] > 日期].reset_index(drop=True)
+
+    # 冗余排顺
+    df = df.sort_values(by="trade_date", ascending=True)
+
+    首日数据 = df.iloc[0]
+    上市发行价 = 首日数据.pre_close
+
+    百分比 = 1
+    后复权数据 = {}
+    今日价格 = 上市发行价
+    上一日_收盘价 = 上市发行价
+    for data in df.itertuples():
+        if data.pre_close != 上一日_收盘价:
+            百分比 *= 上一日_收盘价 / data.pre_close
+            # print(f"{data.trade_date} {百分比} 百分比")
+        今日价格 += data.change * 百分比
+
+        后复权数据[str(data.trade_date)] = 今日价格
+
+        上一日_收盘价 = data.close
+
+    return 后复权数据
+
+
 if __name__ == "__main__":
     df = get_股票列表()
 
