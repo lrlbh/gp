@@ -186,7 +186,7 @@ def get_gdp_插值():
 # show_gdp_插值()
 
 
-def get_gdp_补偿(开始日期="2000"):
+def get_gdp_补偿(开始日期="1991"):
 
     # 返回值
     ret = {}

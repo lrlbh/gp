@@ -7,6 +7,8 @@ import tl
 import tl.dir
 from datetime import datetime
 import gp.pub
+import gp.gdp
+import gp.m2
 
 
 def get_股票列表(更新=False, 更新间隔S=60):
@@ -277,34 +279,123 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
     raise Exception(f"空数据: {单个股票文件}")
 
 
-def 后复权数据(code, 日期="1999"):
-    df = get_单个股票数据(code)
+def get_all_股票数据(
+    开始时间="20040101", start=["TS", "T"], end=["BJ"], status=["D", "P", "G"]
+):
+    if len(开始时间) == 4:
+        开始时间 += "0101"
+    elif len(开始时间) == 6:
+        开始时间 += "01"
 
-    # 开始日期
-    日期 = int(日期 + "0101")
-    df = df[df["trade_date"] > 日期].reset_index(drop=True)
+    data_list = []
 
-    # 冗余排顺
-    df = df.sort_values(by="trade_date", ascending=True)
+    code_list = get_股票列表(True)
 
-    首日数据 = df.iloc[0]
-    上市发行价 = 首日数据.pre_close
+    for row in code_list.itertuples():
+        code = row.ts_code
 
-    百分比 = 1
-    后复权数据 = {}
-    今日价格 = 上市发行价
-    上一日_收盘价 = 上市发行价
-    for data in df.itertuples():
-        if data.pre_close != 上一日_收盘价:
-            百分比 *= 上一日_收盘价 / data.pre_close
-            # print(f"{data.trade_date} {百分比} 百分比")
-        今日价格 += data.change * 百分比
+        # 部分股票没有数据，跳过
+        # 部分股票代码,被回收复用,TS开头
+        if code.startswith(tuple(start)):
+            continue
 
-        后复权数据[str(data.trade_date)] = 今日价格
+        if code.endswith(tuple(end)):
+            continue
 
-        上一日_收盘价 = data.close
+        if row.list_status in status:
+            continue
 
-    return 后复权数据
+        # 获取后复权股票数据
+        data = get_单个股票数据(code)
+        data = data[data["trade_date"] > int(开始时间)].reset_index(drop=True)
+        data_list.append(data)
+
+    return data_list
+
+
+def get_后复权数据(股票数据列表):
+    if not isinstance(股票数据列表, (list, tuple)):
+        股票数据列表 = [股票数据列表]
+
+    ret_data = []
+
+    for df in 股票数据列表:
+        # 冗余排序
+        # df = df.copy()
+        # df = df.sort_values(by="trade_date", ascending=True)
+
+        首日数据 = df.iloc[0]
+        上市发行价 = 首日数据.pre_close
+
+        百分比 = 1
+        后复权数据 = {}
+        今日价格 = 上市发行价
+        上一日_收盘价 = 上市发行价
+        for data in df.itertuples():
+            if data.pre_close != 上一日_收盘价:
+                百分比 *= 上一日_收盘价 / data.pre_close
+                # print(f"{data.trade_date} {百分比} 百分比")
+            今日价格 += data.change * 百分比
+
+            后复权数据[str(data.trade_date)] = 今日价格
+
+            上一日_收盘价 = data.close
+        ret_data.append(后复权数据)
+
+    if len(ret_data) > 1:
+        return ret_data
+    else:
+        return ret_data[0]
+
+
+def get_通胀修复数据(后复权数据):
+    if not isinstance(后复权数据, (list, tuple)):
+        后复权数据 = [后复权数据]
+
+    # 获取通胀数据
+    gdp = gp.gdp.get_gdp_补偿()
+    m2 = gp.m2.get_m2_补偿()
+    货币贬值 = {key: (m2[key] - gdp[key]) for key in m2}
+
+    ret_data = []
+
+    for data in 后复权数据:
+        tz = data.copy()
+        # 修复通胀
+        上市第一天 = min(tz.keys())
+        for key in tz:
+            区间贬值 = 货币贬值[key] - 货币贬值[上市第一天]
+            tz[key] /= 1 + 区间贬值
+
+        ret_data.append(tz)
+
+    if len(ret_data) > 1:
+        return ret_data
+    else:
+        return ret_data[0]
+
+    #     tz_list = list(tz.values())
+    #     股票平均值 = sum(tz_list) / len(tz_list)
+    #     股票当前值 = tz_list[-1]
+    #     股票最小值 = min(tz_list)
+
+    #     if 股票当前值 <= 股票最小值 * 1.0693:  # and 股票当前值 * 9 <= 股票平均值:
+    #         if row.name.startswith(("S", "s", "*", "退")):
+    #             异常_min_code_list.append(code)  # + "-->" + row.name)
+    #         else:
+    #             min_code_list.append(code)  # + "-->" + row.name)
+
+    #             # 归一化(hfq)
+    #             # 归一化(tz)
+    #             # plt.title(row.name)
+    #             # x_time = [datetime.strptime(date, "%Y%m%d") for date in hfq.keys()]
+    #             # plt.plot(x_time, hfq.values(), color="green", label="后复权股价")
+    #             # x_time = [datetime.strptime(date, "%Y%m%d") for date in tz.keys()]
+    #             # plt.plot(x_time, tz.values(), color="red", label="通胀修复后股价")
+    #             # plt.legend()
+    #             # plt.show()
+    # print(len(min_code_list))
+    # print(min_code_list)
 
 
 if __name__ == "__main__":

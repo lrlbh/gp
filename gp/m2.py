@@ -8,6 +8,7 @@ import tl.dir
 from datetime import datetime
 import gp.pub
 import numpy as np
+import math
 
 
 def get_m2(更新=False, 更新间隔S=60 * 60 * 24):
@@ -137,6 +138,8 @@ def get_m2_补偿(开始日期="2000"):
 
     # 前一个月数据
     基值m2 = df[df["month"] == str(int(开始日期) - 1) + "12"].m2.item()
+    if math.isnan(基值m2):
+        raise Exception("还没有生成早期M2数据")
 
     # 对比前一年的，同比增长数据
     总月数 = (int(datetime.now().strftime("%Y")) - int(开始日期) + 1) * 12
