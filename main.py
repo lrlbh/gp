@@ -15,6 +15,12 @@ plt.rcParams["axes.unicode_minus"] = False
 # gp.gp.更新()
 # 1 / 0
 
+gp.gdp.get_gdp_倍数()
+1 / 0
+
+T = gp.m2.get_m2_货币补偿()
+# print(T)
+1 / 0
 
 开始时间 = "2004"
 
