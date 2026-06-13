@@ -60,7 +60,7 @@ def get_gdp(更新=False, 更新间隔S=60 * 60 * 24):
 
 
 @lru_cache(maxsize=None)
-def get_gdp_倍数(开始日期="1991"):
+def __init_gdp增长(开始日期="1989"):
 
     开始日期 = 开始日期[0:4]
 
@@ -96,9 +96,8 @@ def get_gdp_倍数(开始日期="1991"):
     # for key in ret:
     #     print(key, ret[key])
 
-    # 2. 将字典转换为 Pandas Series，并将年份处理为该年的第一天（如 1991-01-01）
-    # 注：如果你希望这个值代表年底（如 12-31），可以改用 f"{y}-12-31"
-    dates = [pd.to_datetime(f"{y}-01-01") for y in ret.keys()]
+    # 2. 生成年份后，直接转换为该年的年末（YearEnd）
+    dates = pd.to_datetime(list(ret.keys())) + pd.offsets.YearEnd(0)
     df = pd.DataFrame(list(ret.values()), index=dates, columns=["value"])
 
     # 3. 重新采样到“天”(D)，此时中间的日子会变成 NaN
@@ -109,14 +108,34 @@ def get_gdp_倍数(开始日期="1991"):
     df_daily["linear"] = df_daily["value"].interpolate(method="linear")
 
     # 方法 B：三次样条插值（更平滑，适合金融曲线或自然增长，但注意两端可能会有轻微抖动）
-    df_daily["spline"] = df_daily["value"].interpolate(method="spline", order=3)
+    # df_daily["spline"] = df_daily["value"].interpolate(method="spline", order=3)
 
-    # # 5. 查看或导出结果
+    # 自定义时间格式
+    df_daily.index = df_daily.index.strftime("%Y%m%d")
+
+    # 截断数据，然数据只到今天
+    df_daily = df_daily.loc[: datetime.now().strftime("%Y%m%d")]
+    # df_daily = df_daily.loc[:'20251231']
+
+    return df_daily
+
+
+def get_gdp定基增长倍率(开始日期="20260101"):
+
+    # 获取完整GDP增速
+    df_daily = __init_gdp增长()
+
+    # 转为从某一天开始的gdp增速
+    新基准值 = df_daily.loc[开始日期, "linear"]
+    df_daily["new_linear"] = df_daily["linear"] / 新基准值
+
+    # # # 5. 查看或导出结果
     # print("插值后的前 5 行数据：")
     # print(df_daily.head(5))
 
     # print("\n插值后的最后 5 行数据：")
     # print(df_daily.tail(5))
 
-    daily_dict = df_daily["linear"].to_dict()
-    return daily_dict
+    ret = df_daily.loc[开始日期:]["new_linear"].to_dict()
+    print(ret)
+    return ret
