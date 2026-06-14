@@ -164,7 +164,7 @@ def __init_m2增长(开始日期="1990"):
 
     df_m2 = get_m2_插值()
 
-    df_m2 = df_m2[df_m2["month"] > 开始日期]
+    df_m2 = df_m2[df_m2["month"] > 开始日期].copy()
 
     # 生成一个带具体日期的列
     df_m2["date"] = pd.to_datetime(

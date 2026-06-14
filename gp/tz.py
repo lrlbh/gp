@@ -1,9 +1,11 @@
 import gp.gdp
 import gp.m2
 import gp.r人口
+import gp.c财富集中
+import matplotlib.pyplot as plt
 
 
-def get_等购买力通胀(开始日期="20040101"):
+def get_等购买力货币通胀(开始日期="20040101"):
     m2 = gp.m2.get_m2定基增长率(开始日期)
     gdp = gp.gdp.get_gdp定基增长率(开始日期)
 
@@ -12,7 +14,8 @@ def get_等购买力通胀(开始日期="20040101"):
     return 通胀_df
 
 
-def get_等地位通胀(开始日期="20040101"):
+# def get_等地位货币通胀(开始日期="20040101", 出生时间戳=None, 起始财富=None):
+def get_等地位货币通胀(开始日期="20250601"):
     """
     只是一个简单评估
         起码应该固定视角为自己的阶级,底层吊毛
@@ -38,14 +41,18 @@ def get_等地位通胀(开始日期="20040101"):
     m2 = gp.m2.get_m2定基增长率(开始日期)
     gdp = gp.gdp.get_gdp定基增长率(开始日期)
     rk = gp.r人口.get_人口定基增长率(开始日期)
+    cf = gp.c财富集中.get_财富集中定基率(开始日期, "top_01")
 
     # 货币稀释倍数
     通胀_df = (m2["temp_定基"] / gdp["temp_定基"]).to_frame(name="temp_定基")
 
     # 地位稀释倍数
-    通胀_df = (通胀_df["temp_定基"] * gdp["temp_定基"] / rk["temp_定基"]).to_frame(
-        name="temp_定基"
-    )
+    通胀_df = (
+        通胀_df["temp_定基"] * gdp["temp_定基"] / rk["temp_定基"] / cf["temp_定基"]
+    ).to_frame(name="temp_定基")
 
+    # 通胀_df = 通胀_df.reset_index()
+    # plt.plot(通胀_df["temp_定基"])
+    # plt.show()
     print(通胀_df)
     return 通胀_df

@@ -20,7 +20,7 @@ plt.rcParams["axes.unicode_minus"] = False
 # gp.r人口.get_人口定基增长率()
 # 1 / 0
 
-T = gp.tz.get_等地位通胀()
+T = gp.tz.get_等地位货币通胀()
 1 / 0
 
 T = gp.tz.get_等购买力通胀()
