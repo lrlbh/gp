@@ -120,7 +120,7 @@ def __init_gdp增长(开始日期="1989"):
     return df_daily
 
 
-def get_gdp定基增长倍率(开始日期="20040101"):
+def get_gdp定基增长率(开始日期="20040101"):
 
     # 获取完整GDP增速
     df_daily = __init_gdp增长()

@@ -9,15 +9,26 @@ import gp.m2
 import gp.gp
 from datetime import datetime
 import gp.史低股
+import gp.tz
+import gp.r人口
 
 plt.rcParams["font.sans-serif"] = ["SimHei"]  # Windows/Linux 推荐
 plt.rcParams["axes.unicode_minus"] = False
 # gp.gp.更新()
 # 1 / 0
 
+# gp.r人口.get_人口定基增长率()
+# 1 / 0
+
+T = gp.tz.get_等地位通胀()
+1 / 0
+
+T = gp.tz.get_等购买力通胀()
+1 / 0
+
 T = gp.gdp.get_gdp定基增长倍率()
 print(T)
-# 1 / 0
+1 / 0
 
 T = gp.m2.get_m2定基增长率()
 print(T)
