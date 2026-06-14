@@ -20,56 +20,84 @@ plt.rcParams["axes.unicode_minus"] = False
 # gp.r人口.get_人口定基增长率()
 # 1 / 0
 
-T = gp.tz.get_等地位货币通胀()
-1 / 0
+# 获取完整股票数据
+start = time.time()
+df = gp.gp.get_all_股票数据()
+print(time.time() - start)
 
-T = gp.tz.get_等购买力通胀()
-1 / 0
+# 复权
+start = time.time()
+gp.gp.add_后复权数据_2(df)
+print(time.time() - start)
 
-T = gp.gdp.get_gdp定基增长倍率()
-print(T)
-1 / 0
+min_code = []
+for key in df:
+    this = df[key]["hfq_close"].iloc[-1]
+    t_min = df[key]["hfq_close"].min()
+    t_max = df[key]["hfq_close"].max()
+    t_avg = df[key]["hfq_close"].mean()
 
-T = gp.m2.get_m2定基增长率()
-print(T)
-1 / 0
+    if this < t_min * 1.05 and this * 5 < df[key]["hfq_close"].mean():
+        min_code.append(key)
+        print(f"{key}")
 
-开始时间 = "2004"
+print(len(min_code))
 
-
-# 获取通胀数据
-gdp = gp.gdp.get_gdp_补偿(开始时间)
-m2 = gp.m2.get_m2_补偿(开始时间)
-# tz = {key: (1 + m2[key]) / (1 + gdp[key]) for key in m2}
-tz = {key: (m2[key] / gdp[key]) for key in m2}
-print(tz)
-x_time = [datetime.strptime(date, "%Y%m%d") for date in tz.keys()]
-plt.plot(x_time, tz.values(), color="red", label="货币贬值趋势")
-x_time = [datetime.strptime(date, "%Y%m%d") for date in gdp.keys()]
-plt.plot(x_time, gdp.values(), color="blue", label="GDP增长趋势")
-x_time = [datetime.strptime(date, "%Y%m%d") for date in m2.keys()]
-plt.plot(x_time, m2.values(), color="green", label="M2增长趋势")
-plt.legend()
-plt.show()
-
-上市第一天 = "20040101"
-基准贬值 = tz[上市第一天]
-for key in tz:
-    tz[key] /= 基准贬值
+# plt.plot(df["hfq_close"])
+# plt.show()
 
 
-tz = {key: value for key, value in tz.items() if key >= 上市第一天}
-gdp = {key: value for key, value in gdp.items() if key >= 上市第一天}
-m2 = {key: value for key, value in m2.items() if key >= 上市第一天}
+# T = gp.tz.get_等地位_货币通胀()
+# print(T)
+# 1 / 0
 
-x_time = [datetime.strptime(date, "%Y%m%d") for date in tz.keys()]
-plt.plot(x_time, tz.values(), color="red", label="货币贬值趋势")
-x_time = [datetime.strptime(date, "%Y%m%d") for date in gdp.keys()]
-plt.plot(x_time, gdp.values(), color="blue", label="GDP增长趋势")
-x_time = [datetime.strptime(date, "%Y%m%d") for date in m2.keys()]
-plt.plot(x_time, m2.values(), color="green", label="M2增长趋势")
-plt.legend()
-plt.show()
+# T = gp.tz.get_等购买力_货币通胀()
+# 1 / 0
+
+# T = gp.gdp.get_gdp定基增长倍率()
+# print(T)
+# 1 / 0
+
+# T = gp.m2.get_m2定基增长率()
+# print(T)
+# 1 / 0
+
+# 开始时间 = "2004"
+
+
+# # 获取通胀数据
+# gdp = gp.gdp.get_gdp_补偿(开始时间)
+# m2 = gp.m2.get_m2_补偿(开始时间)
+# # tz = {key: (1 + m2[key]) / (1 + gdp[key]) for key in m2}
+# tz = {key: (m2[key] / gdp[key]) for key in m2}
+# print(tz)
+# x_time = [datetime.strptime(date, "%Y%m%d") for date in tz.keys()]
+# plt.plot(x_time, tz.values(), color="red", label="货币贬值趋势")
+# x_time = [datetime.strptime(date, "%Y%m%d") for date in gdp.keys()]
+# plt.plot(x_time, gdp.values(), color="blue", label="GDP增长趋势")
+# x_time = [datetime.strptime(date, "%Y%m%d") for date in m2.keys()]
+# plt.plot(x_time, m2.values(), color="green", label="M2增长趋势")
+# plt.legend()
+# plt.show()
+
+# 上市第一天 = "20040101"
+# 基准贬值 = tz[上市第一天]
+# for key in tz:
+#     tz[key] /= 基准贬值
+
+
+# tz = {key: value for key, value in tz.items() if key >= 上市第一天}
+# gdp = {key: value for key, value in gdp.items() if key >= 上市第一天}
+# m2 = {key: value for key, value in m2.items() if key >= 上市第一天}
+
+# x_time = [datetime.strptime(date, "%Y%m%d") for date in tz.keys()]
+# plt.plot(x_time, tz.values(), color="red", label="货币贬值趋势")
+# x_time = [datetime.strptime(date, "%Y%m%d") for date in gdp.keys()]
+# plt.plot(x_time, gdp.values(), color="blue", label="GDP增长趋势")
+# x_time = [datetime.strptime(date, "%Y%m%d") for date in m2.keys()]
+# plt.plot(x_time, m2.values(), color="green", label="M2增长趋势")
+# plt.legend()
+# plt.show()
 
 
 # start = time.time()

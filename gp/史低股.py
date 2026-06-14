@@ -100,28 +100,3 @@ def get通胀(开始时间="2004"):
     print(min_code_list)
 
 
-
-def get_all_hfq(开始时间="2004", start=["TS", "T"], end=["BJ"], status=["D", "P", "G"]):
-    data_list = []
-
-    code_list = gp.gp.get_股票列表(True)
-
-    for row in code_list.itertuples():
-        code = row.ts_code
-
-        # 部分股票没有数据，跳过
-        # 部分股票代码,被回收复用,TS开头
-        if code.startswith(tuple(start)):
-            continue
-
-        if code.endswith(tuple(end)):
-            continue
-
-        if row.list_status in status:
-            continue
-
-        # 获取后复权股票数据
-        hfq = gp.gp.后复权数据(code, 开始时间)
-        data_list.append(hfq)
-
-    return data_list

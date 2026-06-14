@@ -9,6 +9,7 @@ from datetime import datetime
 import gp.pub
 import gp.gdp
 import gp.m2
+import numpy as np
 
 
 def get_股票列表(更新=False, 更新间隔S=60):
@@ -280,14 +281,17 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
 
 
 def get_all_股票数据(
-    开始时间="20040101", start=["TS", "T"], end=["BJ"], status=["D", "P", "G"]
+    开始时间="1990101",
+    start=["TS", "T", "300", "688"],
+    end=["BJ"],
+    status=["D", "P", "G"],
 ):
     if len(开始时间) == 4:
         开始时间 += "0101"
     elif len(开始时间) == 6:
         开始时间 += "01"
 
-    data_list = []
+    data_dict = {}
 
     code_list = get_股票列表(True)
 
@@ -308,9 +312,79 @@ def get_all_股票数据(
         # 获取后复权股票数据
         data = get_单个股票数据(code)
         data = data[data["trade_date"] > int(开始时间)].reset_index(drop=True)
-        data_list.append(data)
+        data_dict[code] = data
 
-    return data_list
+    return data_dict
+
+
+def add_后复权数据(股票数据, 列名="hfq_close"):
+    """
+    针对你的新场景优化：
+    直接在原始数据上增加一列后复权数据。
+    支持传入：单个 DataFrame，或者 {code: DataFrame} 的字典。
+    """
+    # 1. 拆分数据流：如果是字典，提取出所有的 DataFrame；如果是单个 DataFrame，直接用列表包裹
+    if isinstance(股票数据, dict):
+        df_list = 股票数据.values()
+    else:
+        df_list = [股票数据]
+
+    # 2. 核心计算逻辑不变
+    for df in df_list:
+        if df.empty:
+            continue
+
+        首日数据 = df.iloc[0]
+        百分比 = 1.0
+        今日价格 = 上一日_收盘价 = 首日数据.pre_close
+
+        hfq_prices = []
+        for data in df.itertuples():
+            if data.pre_close != 上一日_收盘价:
+                百分比 *= 上一日_收盘价 / data.pre_close
+            今日价格 += data.change * 百分比
+            hfq_prices.append(今日价格)
+            上一日_收盘价 = data.close
+
+        # 原地添加新列
+        df[列名] = hfq_prices
+
+
+def add_后复权数据_2(股票数据, 列名="hfq_close"):
+    """
+    使用 Pandas 向量化计算，消灭 for 循环。
+    支持传入：单个 DataFrame，或者 {code: DataFrame} 的字典。
+    """
+    if isinstance(股票数据, dict):
+        df_list = 股票数据.values()
+    else:
+        df_list = [股票数据]
+
+    for df in df_list:
+        if df.empty:
+            continue
+
+        # --- 核心向量化计算逻辑 ---
+
+        # 1. 计算每一天的复权因子 (因子 = 上一日收盘价 / 今日昨收)
+        # df['close'].shift(1) 就是把收盘价整列往下移一行，相当于拿到了“上一日的收盘价”
+        # 第一行的上一日收盘价不存在，用今日的昨收 (pre_close) 补齐
+        last_close = df["close"].shift(1).fillna(df["pre_close"].iloc[0])
+
+        # 当 data.pre_close != 上一日_收盘价 时才发生变动，其余时间因子为 1.0
+        # np.where(条件, 满足条件的值, 不满足条件的值)
+        daily_factor = np.where(
+            df["pre_close"] != last_close, last_close / df["pre_close"], 1.0
+        )
+
+        # 2. 计算累计复权因子 (.cumprod() 是累计求积，瞬间替代了你的 百分比 *= ...)
+        cum_factor = daily_factor.cumprod()
+
+        # 3. 计算每日的后复权涨跌额 (今日涨跌幅 * 累计复权因子)
+        hfq_change = df["change"] * cum_factor
+
+        # 4. 最终后复权价 = 初始发行价 + 累计的后复权涨跌额 (.cumsum() 是累计求和)
+        df[列名] = df["pre_close"].iloc[0] + hfq_change.cumsum()
 
 
 def get_后复权数据(股票数据列表):
@@ -346,56 +420,6 @@ def get_后复权数据(股票数据列表):
         return ret_data
     else:
         return ret_data[0]
-
-
-def get_通胀修复数据(后复权数据):
-    if not isinstance(后复权数据, (list, tuple)):
-        后复权数据 = [后复权数据]
-
-    # 获取通胀数据
-    gdp = gp.gdp.get_gdp_补偿()
-    m2 = gp.m2.get_m2_补偿()
-    货币贬值 = {key: (m2[key] - gdp[key]) for key in m2}
-
-    ret_data = []
-
-    for data in 后复权数据:
-        tz = data.copy()
-        # 修复通胀
-        上市第一天 = min(tz.keys())
-        for key in tz:
-            区间贬值 = 货币贬值[key] - 货币贬值[上市第一天]
-            tz[key] /= 1 + 区间贬值
-
-        ret_data.append(tz)
-
-    if len(ret_data) > 1:
-        return ret_data
-    else:
-        return ret_data[0]
-
-    #     tz_list = list(tz.values())
-    #     股票平均值 = sum(tz_list) / len(tz_list)
-    #     股票当前值 = tz_list[-1]
-    #     股票最小值 = min(tz_list)
-
-    #     if 股票当前值 <= 股票最小值 * 1.0693:  # and 股票当前值 * 9 <= 股票平均值:
-    #         if row.name.startswith(("S", "s", "*", "退")):
-    #             异常_min_code_list.append(code)  # + "-->" + row.name)
-    #         else:
-    #             min_code_list.append(code)  # + "-->" + row.name)
-
-    #             # 归一化(hfq)
-    #             # 归一化(tz)
-    #             # plt.title(row.name)
-    #             # x_time = [datetime.strptime(date, "%Y%m%d") for date in hfq.keys()]
-    #             # plt.plot(x_time, hfq.values(), color="green", label="后复权股价")
-    #             # x_time = [datetime.strptime(date, "%Y%m%d") for date in tz.keys()]
-    #             # plt.plot(x_time, tz.values(), color="red", label="通胀修复后股价")
-    #             # plt.legend()
-    #             # plt.show()
-    # print(len(min_code_list))
-    # print(min_code_list)
 
 
 if __name__ == "__main__":
