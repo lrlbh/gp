@@ -105,7 +105,7 @@ def __init_gdp增长(开始日期="1989"):
 
     # 4. 执行插值
     # 方法 A：线性插值（最稳妥，两点之间拉直线）
-    df_daily["linear"] = df_daily["value"].interpolate(method="linear")
+    df_daily["定基增长率"] = df_daily["value"].interpolate(method="linear")
 
     # 方法 B：三次样条插值（更平滑，适合金融曲线或自然增长，但注意两端可能会有轻微抖动）
     # df_daily["spline"] = df_daily["value"].interpolate(method="spline", order=3)
@@ -120,14 +120,14 @@ def __init_gdp增长(开始日期="1989"):
     return df_daily
 
 
-def get_gdp定基增长倍率(开始日期="20260101"):
+def get_gdp定基增长倍率(开始日期="20040101"):
 
     # 获取完整GDP增速
     df_daily = __init_gdp增长()
 
     # 转为从某一天开始的gdp增速
-    新基准值 = df_daily.loc[开始日期, "linear"]
-    df_daily["new_linear"] = df_daily["linear"] / 新基准值
+    新基准值 = df_daily.loc[开始日期, "定基增长率"]
+    df_daily["temp_定基"] = df_daily["定基增长率"] / 新基准值
 
     # # # 5. 查看或导出结果
     # print("插值后的前 5 行数据：")
@@ -136,6 +136,4 @@ def get_gdp定基增长倍率(开始日期="20260101"):
     # print("\n插值后的最后 5 行数据：")
     # print(df_daily.tail(5))
 
-    ret = df_daily.loc[开始日期:]["new_linear"].to_dict()
-    print(ret)
-    return ret
+    return df_daily.loc[开始日期:]

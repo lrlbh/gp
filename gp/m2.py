@@ -153,46 +153,51 @@ def get_m2_插值():
 
     df["m2_插值标记"] = df["m2_插值标记"].fillna("原始")
     df["month"] = df["month"].astype(str)  # 日期转字符串
-    print(df)
+    # print(df)
     return df
 
 
 @lru_cache(maxsize=None)
-def get_m2_货币补偿(开始日期="20000101"):
-    ret = {}
+def __init_m2增长(开始日期="1990"):
+
+    开始日期 = 开始日期[0:4]
 
     df_m2 = get_m2_插值()
 
-    # 通过month列生成新列date，month+本月最后日期 == date
+    df_m2 = df_m2[df_m2["month"] > 开始日期]
+
+    # 生成一个带具体日期的列
     df_m2["date"] = pd.to_datetime(
         df_m2["month"].astype(str) + "01"
     ) + pd.offsets.MonthEnd(0)
 
-    # 设置date为索引列
-    df_m2 = df_m2.set_index("date")
+    # 获取基值
+    基值 = df_m2[df_m2["date"] == 开始日期 + "0131"].m2.item()
 
-    # 今天的日期+一个月
-    结束日期 = (datetime.today() + timedelta(days=31)).strftime("%Y%m%d")
+    # 生成定基增长率
+    df_m2["定基增长率"] = df_m2["m2"] / 基值
 
-    # 生成按天递增的日期数据
-    all_days = pd.date_range(start=开始日期, end=结束日期, freq="D")
-    print(all_days)
+    # 重采样到天
+    df_m2.set_index("date", inplace=True)
+    df_m2 = df_m2.resample("D").asfreq()
 
-    # 生成PD数据结构 2026-04-05 NaN
-    daily_df = pd.DataFrame(index=all_days).join(df_m2["m2"])
-    print(daily_df)
+    # 定基增长率线性插值到天
+    df_m2["定基增长率"] = df_m2["定基增长率"].interpolate(method="linear")
 
-    # 执行线性插值，让 M2 每天平滑地“均匀增长”
-    daily_df["m2"] = daily_df["m2"].interpolate(method="linear")
-    # 假设第一个月不存在通胀，少算最多一个月的通胀
-    daily_df["m2"] = daily_df["m2"].bfill()
+    # 自定义日期格式
+    df_m2.index = df_m2.index.strftime("%Y%m%d")
 
-    # 2. 计算基于开始日期的“补偿增幅系数”
-    base_m2 = daily_df.iloc[0]["m2"]
-    daily_df["补偿系数"] = daily_df["m2"] / base_m2
+    # 截断数据到今天
+    df_m2 = df_m2.loc[: datetime.now().strftime("%Y%m%d")]
+    # print(df_m2)
+    return df_m2
 
-    # 3. 填充到 ret 字典
-    ret = {k.strftime("%Y%m%d"): round(v, 6) for k, v in daily_df["补偿系数"].items()}
-    print(ret)
-    #  '20260711': 30.165513 日期和货币增长了多少倍
-    return ret
+
+def get_m2定基增长率(开始日期="20040101"):
+    df = __init_m2增长()
+
+    基准值 = df.loc[开始日期, "定基增长率"]
+
+    df["temp_定基"] = df["定基增长率"] / 基准值
+
+    return df.loc[开始日期:]
