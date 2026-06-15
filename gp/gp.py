@@ -12,6 +12,10 @@ import gp.gdp
 import gp.m2
 import numpy as np
 import threading
+from joblib import Parallel, delayed
+from multiprocessing import Pool, cpu_count
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
 
 
 def get_股票列表(更新=False, 更新间隔S=60):
@@ -202,7 +206,9 @@ def 更新():
     print(f"更新失败股票: {更新失败的股票.keys()}")
 
 
-def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强制更新=False):
+def get_单个股票数据(
+    code, start_date="19800101", end_date="33330101", 强制更新=False, 不允许下载=True
+):
     """
     ts_code	str	股票代码
     trade_date	str	交易日期
@@ -222,8 +228,17 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
 
     # 获取数据
     if os.path.exists(单个股票文件) and not 强制更新:
-        df = pd.read_csv(单个股票文件, encoding="utf_8_sig", engine="pyarrow")
+        df = pd.read_csv(
+            单个股票文件,
+            encoding="utf_8_sig",
+            engine="pyarrow",
+            # dtype={"trade_date": str},
+        )
         return df
+
+    if 不允许下载:
+        print(f"缺少股票: {code} 同时不允许下载")
+        return None
 
     all_data = []
     offset = 0
@@ -282,6 +297,20 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
     raise Exception(f"空数据: {单个股票文件}")
 
 
+def read_one(code, 开始时间):
+    try:
+        df = gp.gp.get_单个股票数据(code, 不允许下载=True)
+
+        df = df[df["trade_date"] >= 开始时间]
+        # df["trade_date"] = df["trade_date"].astype(str)
+        df["trade_date"] = df["trade_date"].values.astype("U8")
+
+        return code, df
+    except Exception as e:
+        print(f"读取股票 {code} 发生未知错误: {e}")
+        return code, None
+
+
 def get_all_股票数据(
     开始时间="1990101",
     start=["TS", "T", "300", "688"],
@@ -292,10 +321,6 @@ def get_all_股票数据(
         开始时间 += "0101"
     elif len(开始时间) == 6:
         开始时间 += "01"
-
-    # 创建锁对象
-    lock_list = threading.Lock()
-    lock_dict = threading.Lock()
 
     codes = get_股票列表(False)
     code_list = []
@@ -316,35 +341,19 @@ def get_all_股票数据(
         code_list.append(code)
         # # 获取后复权股票数据
 
-    print(len(code_list))
     data_dict = {}
 
-    def read_code():
-        while True:
-            lock_list.acquire()
-            if len(code_list) > 0:
-                code = code_list.pop(0)
-            else:
-                lock_list.release()
-                return
-            lock_list.release()
+    print(f"开始加载 {len(code_list)} 只股票...")
 
-            data = get_单个股票数据(code)
-            # data = data[data["trade_date"] > int(开始时间)].reset_index(drop=True)
+    # 启动 joblib + loky 纯本地高速读取，12核拉满
+    results = Parallel(n_jobs=10, backend="loky")(
+        delayed(read_one)(code, int(开始时间)) for code in code_list
+    )
 
-            # lock_dict.acquire()
-            data_dict[code] = data
-            # lock_dict.release()
+    # 完美过滤掉本地没有文件的 None 值
+    data_dict = {k: v for k, v in results if v is not None}
 
-    thr_s = []
-    for i in range(20):
-        t1 = threading.Thread(target=read_code)
-        t1.start()
-        thr_s.append(t1)
-
-    for t1 in thr_s:
-        t1.join()
-
+    # print(f"成功合并了 {len(data_dict)} 只股票的数据")
     return data_dict
 
 
@@ -478,40 +487,40 @@ def get_后复权数据(股票数据列表):
         return ret_data[0]
 
 
-if __name__ == "__main__":
-    df = get_股票列表()
+# if __name__ == "__main__":
+#     df = get_股票列表()
 
-    # 筛选股票
-    df = df[df["type"] == 1]
-    print(f"股票数量: {len(df)} 只")
+#     # 筛选股票
+#     df = df[df["type"] == 1]
+#     print(f"股票数量: {len(df)} 只")
 
-    # 筛选code的开头
-    t = df[df["code"].str.startswith("sh.60")]
-    print(f"code的开头 sh.60: {len(t)} 只")
+#     # 筛选code的开头
+#     t = df[df["code"].str.startswith("sh.60")]
+#     print(f"code的开头 sh.60: {len(t)} 只")
 
-    # 筛选code_name包含"*ST"的行, regex=False表示不使用正则表达式
-    t = df[df["code_name"].str.contains("*ST", regex=False)]
-    print(f"code_name包含 *ST: {len(t)} 只")
+#     # 筛选code_name包含"*ST"的行, regex=False表示不使用正则表达式
+#     t = df[df["code_name"].str.contains("*ST", regex=False)]
+#     print(f"code_name包含 *ST: {len(t)} 只")
 
-    # 筛选上市日期在2020年1月1日及以后的股票
-    t = df[df["ipoDate"] >= "2020-01-01"]
-    print(f"2020年1月1日及以后上市的股票数量: {len(t)} 只")
+#     # 筛选上市日期在2020年1月1日及以后的股票
+#     t = df[df["ipoDate"] >= "2020-01-01"]
+#     print(f"2020年1月1日及以后上市的股票数量: {len(t)} 只")
 
-    # 将ipoDate列转换为日期类型
-    df["ipoDate"] = pd.to_datetime(df["ipoDate"])
+#     # 将ipoDate列转换为日期类型
+#     df["ipoDate"] = pd.to_datetime(df["ipoDate"])
 
-    # 按照上市日期排序
-    df = df.sort_values(by="ipoDate")
+#     # 按照上市日期排序
+#     df = df.sort_values(by="ipoDate")
 
-    # 统计每个市场的股票数量
-    t = df["code"].str[:2].value_counts()
-    print(f"股票数量按市场分类:{t.to_dict()}")
+#     # 统计每个市场的股票数量
+#     t = df["code"].str[:2].value_counts()
+#     print(f"股票数量按市场分类:{t.to_dict()}")
 
-    # 打印每列的数据类型
-    # for col in df.columns:
-    #     print(f"{col}: {df[col].dtype}")
+#     # 打印每列的数据类型
+#     # for col in df.columns:
+#     #     print(f"{col}: {df[col].dtype}")
 
-    print(df.head())
+#     print(df.head())
 
-    df = get_单个股票数据("sh.689009")
-    print(df.head())
+#     df = get_单个股票数据("sh.689009")
+#     print(df.head())
