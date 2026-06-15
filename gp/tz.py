@@ -9,7 +9,7 @@ def get_等购买力_货币通胀(开始日期="20040101"):
     m2 = gp.m2.get_m2定基增长率(开始日期)
     gdp = gp.gdp.get_gdp定基增长率(开始日期)
 
-    通胀_df = m2["temp_定基"] / gdp["temp_定基"]().to_frame(name="temp_定基")
+    通胀_df = (m2["temp_定基"] / gdp["temp_定基"]).to_frame(name="temp_定基")
 
     return 通胀_df
 

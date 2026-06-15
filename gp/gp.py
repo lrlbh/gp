@@ -3,6 +3,7 @@ import time
 import os
 from pathlib import Path
 import pandas as pd
+import gp.tz
 import tl
 import tl.dir
 from datetime import datetime
@@ -350,7 +351,7 @@ def add_后复权数据(股票数据, 列名="hfq_close"):
         df[列名] = hfq_prices
 
 
-def add_后复权数据_2(股票数据, 列名="hfq_close"):
+def add_后复权数据_2(股票数据, 列名="hfq"):
     """
     使用 Pandas 向量化计算，消灭 for 循环。
     支持传入：单个 DataFrame，或者 {code: DataFrame} 的字典。
@@ -385,6 +386,31 @@ def add_后复权数据_2(股票数据, 列名="hfq_close"):
 
         # 4. 最终后复权价 = 初始发行价 + 累计的后复权涨跌额 (.cumsum() 是累计求和)
         df[列名] = df["pre_close"].iloc[0] + hfq_change.cumsum()
+
+
+def add_通胀(股票数据):
+    if isinstance(股票数据, dict):
+        df_list = 股票数据.values()
+    else:
+        df_list = [股票数据]
+
+    for df in df_list:
+        if df.empty:
+            continue
+        # 1. 正常获取通胀数据
+        开始日期 = str(df["trade_date"].iloc[0])
+        tz = gp.tz.get_等地位_货币通胀(开始日期)
+
+        # 2. 关键一步：把通胀数据做成字典，并将键（日期）全部强转为【int 整数】，确保和股票日期一致
+        # 如果你的 tz 日期在 index 上：
+        tz_mapping = {int(k): v for k, v in tz["temp_定基"].to_dict().items()}
+
+        # 3. 使用 map 映射。
+        # .ffill().bfill() 是灵魂，它能自动用前一天的通胀数据填满周末和节假日停牌的空缺！
+        tz_factor = df["trade_date"].map(tz_mapping).ffill().bfill()
+
+        # 4. 此时 tz_factor 是一列和 df 完全等长且对齐的数字，直接相乘，绝对有数据！
+        df["tz"] = df["hfq"] / tz_factor
 
 
 def get_后复权数据(股票数据列表):
