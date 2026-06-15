@@ -1,4 +1,5 @@
 import os.path
+from re import S
 import time
 import os
 from pathlib import Path
@@ -228,10 +229,12 @@ def get_单个股票数据(
 
     # 获取数据
     if os.path.exists(单个股票文件) and not 强制更新:
+        要读取的列 = ["trade_date", "close", "pre_close", "change"]
         df = pd.read_csv(
             单个股票文件,
             encoding="utf_8_sig",
             engine="pyarrow",
+            usecols=要读取的列,
             # dtype={"trade_date": str},
         )
         return df
@@ -300,8 +303,26 @@ def get_单个股票数据(
 def read_one(code, 开始时间):
     try:
         df = gp.gp.get_单个股票数据(code, 不允许下载=True)
+        print(df)
+        return
 
+        if df.empty:
+            print(f"空数据 {code}")
+            return code, None
+
+        # 后复权
+        last_close = df["close"].shift(1).fillna(df["pre_close"].iloc[0])
+        daily_factor = np.where(
+            df["pre_close"] != last_close, last_close / df["pre_close"], 1.0
+        )
+        cum_factor = daily_factor.cumprod()
+        hfq_change = df["change"] * cum_factor
+        df["hfq"] = df["pre_close"].iloc[0] + hfq_change.cumsum()
+
+        # 筛选开始日期
         df = df[df["trade_date"] >= 开始时间]
+
+        # 日期转字符串
         # df["trade_date"] = df["trade_date"].astype(str)
         df["trade_date"] = df["trade_date"].values.astype("U8")
 
@@ -313,7 +334,7 @@ def read_one(code, 开始时间):
 
 def get_all_股票数据(
     开始时间="1990101",
-    start=["TS", "T", "300", "688"],
+    start=["TS", "T", "300", "688", "301"],
     end=["BJ"],
     status=["D", "P", "G"],
 ):
@@ -326,6 +347,9 @@ def get_all_股票数据(
     code_list = []
     for row in codes.itertuples():
         code = row.ts_code
+
+        if row.name.startswith("退市"):
+            continue
 
         # 部分股票没有数据，跳过
         # 部分股票代码,被回收复用,TS开头
@@ -450,6 +474,35 @@ def add_通胀(股票数据):
 
         # 4. 此时 tz_factor 是一列和 df 完全等长且对齐的数字，直接相乘，绝对有数据！
         df["tz"] = df["hfq"] / tz_factor
+
+
+# def add_通胀(股票数据):
+#     if isinstance(股票数据, dict):
+#         df_list = list(股票数据.values())
+#     else:
+#         df_list = [股票数据]
+
+#     if not df_list or all(df.empty for df in df_list):
+#         return
+
+#     # 1. 【核心优化】移出循环！从所有股票中找到最早的开始日期，只获取一次通胀数据
+#     # 假设 trade_date 是 int 类型的 YYYYMMDD（例如 20200101）
+#     最早日期 = min(str(df["trade_date"].iloc[0]) for df in df_list if not df.empty)
+#     tz = gp.tz.get_等地位_货币通胀(最早日期)
+
+#     # 2. 【核心优化】移出循环！一次性生成全局通胀映射字典
+#     tz_mapping = {int(k): v for k, v in tz["temp_定基"].to_dict().items()}
+
+#     # 3. 进入循环，内部只做最高效的向量化计算
+#     for df in df_list:
+#         if df.empty:
+#             continue
+
+#         # 直接映射，此时 tz_mapping 已经在内存中准备好了，无需反复构建
+#         tz_factor = df["trade_date"].map(tz_mapping).ffill().bfill()
+
+#         # 向量化除法
+#         df["tz"] = df["hfq"] / tz_factor
 
 
 def get_后复权数据(股票数据列表):

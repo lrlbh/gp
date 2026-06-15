@@ -3,8 +3,9 @@ import gp.m2
 import gp.r人口
 import gp.c财富集中
 import matplotlib.pyplot as plt
+from functools import lru_cache
 
-
+@lru_cache(maxsize=None)
 def get_等购买力_货币通胀(开始日期="20040101"):
     m2 = gp.m2.get_m2定基增长率(开始日期)
     gdp = gp.gdp.get_gdp定基增长率(开始日期)
@@ -14,6 +15,9 @@ def get_等购买力_货币通胀(开始日期="20040101"):
     return 通胀_df
 
 
+
+
+@lru_cache(maxsize=None)
 def get_等地位_货币通胀(开始日期="20040101", 出生时间戳=None, 起始财富=None):
     # def get_等地位_货币通胀(开始日期="20040101"):
     """
