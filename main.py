@@ -22,16 +22,22 @@ plt.rcParams["axes.unicode_minus"] = False
 
 # 获取完整股票数据
 start = time.time()
-# df = gp.gp.get_all_股票数据()
-df = gp.gp.get_单个股票数据("600000.SH")
-df = df[df["trade_date"] > int(20040101)].reset_index(drop=True)
+df = gp.gp.get_all_股票数据()
+# df = gp.gp.get_单个股票数据("600000.SH")
+# df = df[df["trade_date"] > int(20040101)].reset_index(drop=True)
 print(time.time() - start)
 
 # 复权
 start = time.time()
 gp.gp.add_后复权数据_2(df)
-gp.gp.add_通胀(df)
 print(time.time() - start)
+
+# 通胀校准
+# start = time.time()
+# gp.gp.add_通胀(df)
+# print(time.time() - start)
+
+1 / 0
 print(df)
 
 plt.plot(df["hfq"], color="blue", label="后复权")
@@ -39,7 +45,7 @@ plt.plot(df["tz"], color="green", label="通胀后")
 plt.legend()
 plt.show()
 
-1 / 0
+
 min_code = []
 for key in df:
     this = df[key]["hfq"].iloc[-1]

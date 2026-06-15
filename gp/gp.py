@@ -11,6 +11,7 @@ import gp.pub
 import gp.gdp
 import gp.m2
 import numpy as np
+import threading
 
 
 def get_股票列表(更新=False, 更新间隔S=60):
@@ -221,7 +222,7 @@ def get_单个股票数据(code, start_date="19800101", end_date="33330101", 强
 
     # 获取数据
     if os.path.exists(单个股票文件) and not 强制更新:
-        df = pd.read_csv(单个股票文件, encoding="utf_8_sig")
+        df = pd.read_csv(单个股票文件, encoding="utf_8_sig", engine="pyarrow")
         return df
 
     all_data = []
@@ -292,11 +293,13 @@ def get_all_股票数据(
     elif len(开始时间) == 6:
         开始时间 += "01"
 
-    data_dict = {}
+    # 创建锁对象
+    lock_list = threading.Lock()
+    lock_dict = threading.Lock()
 
-    code_list = get_股票列表(True)
-
-    for row in code_list.itertuples():
+    codes = get_股票列表(False)
+    code_list = []
+    for row in codes.itertuples():
         code = row.ts_code
 
         # 部分股票没有数据，跳过
@@ -310,10 +313,37 @@ def get_all_股票数据(
         if row.list_status in status:
             continue
 
-        # 获取后复权股票数据
-        data = get_单个股票数据(code)
-        data = data[data["trade_date"] > int(开始时间)].reset_index(drop=True)
-        data_dict[code] = data
+        code_list.append(code)
+        # # 获取后复权股票数据
+
+    print(len(code_list))
+    data_dict = {}
+
+    def read_code():
+        while True:
+            lock_list.acquire()
+            if len(code_list) > 0:
+                code = code_list.pop(0)
+            else:
+                lock_list.release()
+                return
+            lock_list.release()
+
+            data = get_单个股票数据(code)
+            # data = data[data["trade_date"] > int(开始时间)].reset_index(drop=True)
+
+            # lock_dict.acquire()
+            data_dict[code] = data
+            # lock_dict.release()
+
+    thr_s = []
+    for i in range(20):
+        t1 = threading.Thread(target=read_code)
+        t1.start()
+        thr_s.append(t1)
+
+    for t1 in thr_s:
+        t1.join()
 
     return data_dict
 
