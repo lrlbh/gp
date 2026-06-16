@@ -25,7 +25,7 @@ df_list = gp.gp.get_all_股票数据(date)
 print(time.time() - start)
 
 # 筛选股票
-df_list = {
+df_等购地位 = {
     key: value
     for key, value in df_list.items()
     # 定义变量
@@ -40,7 +40,8 @@ df_list = {
     if this < t_min * 1.05 and this * 9 < t_avg
 }
 
-for key in df_list:
+
+for key in df_等购地位:
     print(key)
 
 1 / 0

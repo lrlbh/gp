@@ -352,7 +352,7 @@ def get_all_股票数据(
     status=["D", "P", "G"],
 ):
 
-    codes = get_股票列表(False)
+    codes = get_股票列表(True)
     code_list = []
     for row in codes.itertuples():
         code = row.ts_code

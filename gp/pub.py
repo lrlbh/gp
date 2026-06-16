@@ -12,6 +12,6 @@ m2_path = os.path.join(data_path, "m2.csv")
 人口_path = os.path.join(data_path, "人口.csv")
 
 # Tushare Pro 的 token
-ts_token = "0e29e046df7990e93a881879bf0970f61aaa7cdaade91c97f4d6d412"
+ts_token = os.environ.get("TS_TOKEN")
 # 初始化 Tushare Pro 的 API
 pro = ts.pro_api(ts_token)
