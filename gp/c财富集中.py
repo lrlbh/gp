@@ -80,9 +80,9 @@ def __init_财富集中度增长(target_col="top_1"):
     df_target[target_col] = df_target[target_col].interpolate(method="linear")
 
     # 统一时间索引为字符串 YYYYMMDD
-    df_target.index = df_target.index.strftime("%Y%m%d")
+    df_target.index = df_target.index.strftime("%Y%m%d").astype(int)
 
-    df_target = df_target.loc[: datetime.now().strftime("%Y%m%d")]
+    df_target = df_target.loc[: int(datetime.now().strftime("%Y%m%d"))]
     return df_target
 
 

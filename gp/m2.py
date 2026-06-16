@@ -185,15 +185,15 @@ def __init_m2增长(开始日期="1990"):
     df_m2["定基增长率"] = df_m2["定基增长率"].interpolate(method="linear")
 
     # 自定义日期格式
-    df_m2.index = df_m2.index.strftime("%Y%m%d")
+    df_m2.index = df_m2.index.strftime("%Y%m%d").astype(int)
 
     # 截断数据到今天
-    df_m2 = df_m2.loc[: datetime.now().strftime("%Y%m%d")]
+    df_m2 = df_m2.loc[: int(datetime.now().strftime("%Y%m%d"))]
     # print(df_m2)
     return df_m2
 
 
-def get_m2定基增长率(开始日期="20040101"):
+def get_m2定基增长率(开始日期=20040101):
     df = __init_m2增长()
 
     基准值 = df.loc[开始日期, "定基增长率"]

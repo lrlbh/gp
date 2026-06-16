@@ -52,15 +52,15 @@ def __init_人口增长(开始日期="1989"):
     df["定基增长率"] = df["定基增长率"].interpolate(method="linear")
 
     # 统一时间格式
-    df.index = df.index.strftime("%Y%m%d")
+    df.index = df.index.strftime("%Y%m%d").astype(int)
 
     # 截断多余数据
-    df = df.loc[: datetime.now().strftime("%Y%m%d")]
+    df = df.loc[: int(datetime.now().strftime("%Y%m%d"))]
 
     return df
 
 
-def get_人口定基增长率(开始日期="20040101"):
+def get_人口定基增长率(开始日期=20040101):
     df = __init_人口增长()
 
     基准值 = df.loc[开始日期, "定基增长率"]

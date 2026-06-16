@@ -17,15 +17,35 @@ plt.rcParams["axes.unicode_minus"] = False
 # gp.gp.更新()
 # 1 / 0
 
-# gp.r人口.get_人口定基增长率()
-# 1 / 0
+date = 20040101
+
+
 
 # 获取完整股票数据
 start = time.time()
-df = gp.gp.get_all_股票数据()  # "20040101"
+df = gp.gp.get_all_股票数据(date)  # "20040101"
 # df = gp.gp.get_单个股票数据("600000.SH")
 # df = df[df["trade_date"] > int(20040101)].reset_index(drop=True)
 print(time.time() - start)
+1 / 0
+df["600000.SH"]["tz"] = df["600000.SH"]["hfq"] / tz2["temp_定基"]
+print(df["600000.SH"].head(20))
+print(df["600000.SH"].tail(20))
+nan_count = df["600000.SH"]["tz"].isna().sum()
+print(f"空值数量: {nan_count}")
+
+# 1. 拿股票的 index，直接去减对齐后的 tz2 的 index
+# 如果日期完全一致，相减的结果应该全部是 0
+check_diff = (
+    df["600000.SH"].index - tz2["temp_定基"].reindex(df["600000.SH"].index).index
+)
+
+# 2. 统计差值不等于 0 的天数
+wrong_days = (check_diff != 0).sum()
+print(f"日期错位的行数: {wrong_days}")
+
+1 / 0
+
 
 plt.plot(df["600000.SH"]["hfq"], color="blue", label="后复权")
 # plt.plot(df["tz"], color="green", label="通胀后")

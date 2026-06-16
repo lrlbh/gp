@@ -300,17 +300,15 @@ def get_单个股票数据(
     raise Exception(f"空数据: {单个股票文件}")
 
 
-def read_one(code, 开始时间):
+def read_one(code, 开始时间, tz):
     try:
         df = gp.gp.get_单个股票数据(code, 不允许下载=True)
-        print(df)
-        return
 
         if df.empty:
             print(f"空数据 {code}")
             return code, None
 
-        # 后复权
+        # 添加后复权列
         last_close = df["close"].shift(1).fillna(df["pre_close"].iloc[0])
         daily_factor = np.where(
             df["pre_close"] != last_close, last_close / df["pre_close"], 1.0
@@ -321,10 +319,22 @@ def read_one(code, 开始时间):
 
         # 筛选开始日期
         df = df[df["trade_date"] >= 开始时间]
+        开始时间 = df["trade_date"].min()
+        df.set_index("trade_date", inplace=True)
+
+        # print(f"{开始时间}  {code}")
+
+        # 通胀校准到当天
+        基准值 = tz.loc[开始时间, "定基增长率"]
+        tz["temp_定基"] = tz["定基增长率"] / 基准值
+        tz = tz.loc[开始时间:]
+
+        # 添加通胀列
+        df["tz"] = df["hfq"] / tz["temp_定基"]
 
         # 日期转字符串
         # df["trade_date"] = df["trade_date"].astype(str)
-        df["trade_date"] = df["trade_date"].values.astype("U8")
+        # df["trade_date"] = df["trade_date"].values.astype("U8")
 
         return code, df
     except Exception as e:
@@ -333,15 +343,11 @@ def read_one(code, 开始时间):
 
 
 def get_all_股票数据(
-    开始时间="1990101",
+    开始时间=1990101,
     start=["TS", "T", "300", "688", "301"],
     end=["BJ"],
     status=["D", "P", "G"],
 ):
-    if len(开始时间) == 4:
-        开始时间 += "0101"
-    elif len(开始时间) == 6:
-        开始时间 += "01"
 
     codes = get_股票列表(False)
     code_list = []
@@ -365,13 +371,14 @@ def get_all_股票数据(
         code_list.append(code)
         # # 获取后复权股票数据
 
-    data_dict = {}
+    tz = gp.tz.__init_等地位_货币通胀()
 
+    data_dict = {}
     print(f"开始加载 {len(code_list)} 只股票...")
 
     # 启动 joblib + loky 纯本地高速读取，12核拉满
     results = Parallel(n_jobs=10, backend="loky")(
-        delayed(read_one)(code, int(开始时间)) for code in code_list
+        delayed(read_one)(code, 开始时间, tz) for code in code_list
     )
 
     # 完美过滤掉本地没有文件的 None 值

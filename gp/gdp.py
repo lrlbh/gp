@@ -111,16 +111,16 @@ def __init_gdp增长(开始日期="1989"):
     # df_daily["spline"] = df_daily["value"].interpolate(method="spline", order=3)
 
     # 自定义时间格式
-    df_daily.index = df_daily.index.strftime("%Y%m%d")
+    df_daily.index = df_daily.index.strftime("%Y%m%d").astype(int)
 
     # 截断数据，然数据只到今天
-    df_daily = df_daily.loc[: datetime.now().strftime("%Y%m%d")]
+    df_daily = df_daily.loc[: int(datetime.now().strftime("%Y%m%d"))]
     # df_daily = df_daily.loc[:'20251231']
 
     return df_daily
 
 
-def get_gdp定基增长率(开始日期="20040101"):
+def get_gdp定基增长率(开始日期=20040101):
 
     # 获取完整GDP增速
     df_daily = __init_gdp增长()
