@@ -84,3 +84,25 @@ def test(df_list, 列名):
 test(df_list, "tz_等购买力")
 print("----------------------")
 test(df_list, "tz_等地位")
+
+df_筛选后 = {
+    key: value
+    for key, value in df_list.items()
+    # 定义变量
+    for this, t_min, t_avg in [
+        (
+            value["tz_等购买力"].iloc[-1],
+            value["tz_等购买力"].min(),
+            value["tz_等购买力"].mean(),
+        )
+    ]
+    # 筛选条件
+    if this < t_min * 1.05
+}
+f = open(
+    "test/" + datetime.now().strftime("%Y-%m-%d_%H-%M") + ".txt",
+    "a",
+    encoding="utf-8",
+)
+f.write(f"等购买力,史低股数量: {len(df_筛选后)}\n\n\n")
+f.close()
