@@ -96,7 +96,9 @@ def 更新():
 
     # 通过强制拉取平安银行数据，获取交易日和最新交易日期
     交易日 = (
-        get_单个股票数据(code="000001.SZ", 强制更新=True)["trade_date"]
+        get_单个股票数据(code="000001.SZ", 强制更新=True, 不允许下载=False)[
+            "trade_date"
+        ]
         .astype(str)
         .tolist()
     )
@@ -123,7 +125,7 @@ def 更新():
 
         # 加载股票
         try:
-            data_list.append(get_单个股票数据(code))
+            data_list.append(get_单个股票数据(code, 不允许下载=False))
         except Exception as e:
             if "抱歉，您访问接口(daily)频率超限" in str(e):
                 print("请求过快，等待1.5秒...")
@@ -375,7 +377,7 @@ def get_all_股票数据(
         # # 获取后复权股票数据
 
     tz = gp.tz.tz.__init_等地位_货币通胀()
-    tz2 = gp.tz.tz.__init_等地位_货币通胀()
+    tz2 = gp.tz.tz.__init_等购买力_货币通胀()
 
     data_dict = {}
     print(f"开始加载 {len(code_list)} 只股票...")
