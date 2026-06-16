@@ -81,7 +81,7 @@ def __init_gdp增长(开始日期="1989"):
         try:
             本年GDP = df.loc[df["quarter"] == 当前年 + "Q4", "gdp"].values[0]
         except IndexError:
-            print(f"{当前年}年,GDP数据不存在,使用前三年平均增速预测")
+            # print(f"{当前年}年,GDP数据不存在,使用前三年平均增速预测")
             avg = 0
             for i in range(len(前4年倍率) - 1):
                 avg += 前4年倍率[i + 1] / 前4年倍率[i]

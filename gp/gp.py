@@ -1,22 +1,17 @@
 import os.path
-from re import S
 import time
 import os
 from pathlib import Path
 import pandas as pd
-import gp.tz
+import gp.tz.tz
 import tl
 import tl.dir
 from datetime import datetime
 import gp.pub
-import gp.gdp
-import gp.m2
+import gp.tz.gdp
+import gp.tz.m2
 import numpy as np
-import threading
 from joblib import Parallel, delayed
-from multiprocessing import Pool, cpu_count
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import multiprocessing
 
 
 def get_股票列表(更新=False, 更新间隔S=60):
@@ -229,12 +224,12 @@ def get_单个股票数据(
 
     # 获取数据
     if os.path.exists(单个股票文件) and not 强制更新:
-        要读取的列 = ["trade_date", "close", "pre_close", "change"]
+        # 要读取的列 = ["trade_date", "close", "pre_close", "change"]
         df = pd.read_csv(
             单个股票文件,
             encoding="utf_8_sig",
             engine="pyarrow",
-            usecols=要读取的列,
+            # usecols=要读取的列,
             # dtype={"trade_date": str},
         )
         return df
@@ -300,9 +295,9 @@ def get_单个股票数据(
     raise Exception(f"空数据: {单个股票文件}")
 
 
-def read_one(code, 开始时间, tz):
+def read_one(code, 开始时间, tz, tz2):
     try:
-        df = gp.gp.get_单个股票数据(code, 不允许下载=True)
+        df = get_单个股票数据(code, 不允许下载=True)
 
         if df.empty:
             print(f"空数据 {code}")
@@ -330,7 +325,15 @@ def read_one(code, 开始时间, tz):
         tz = tz.loc[开始时间:]
 
         # 添加通胀列
-        df["tz"] = df["hfq"] / tz["temp_定基"]
+        df["tz_等地位"] = df["hfq"] / tz["temp_定基"]
+
+        # 通胀校准到当天
+        基准值 = tz2.loc[开始时间, "定基增长率"]
+        tz2["temp_定基"] = tz2["定基增长率"] / 基准值
+        tz2 = tz2.loc[开始时间:]
+
+        # 添加通胀列
+        df["tz_等购买力"] = df["hfq"] / tz2["temp_定基"]
 
         # 日期转字符串
         # df["trade_date"] = df["trade_date"].astype(str)
@@ -354,7 +357,7 @@ def get_all_股票数据(
     for row in codes.itertuples():
         code = row.ts_code
 
-        if row.name.startswith("退市"):
+        if row.name.startswith(("退市", "*ST", "ST")):
             continue
 
         # 部分股票没有数据，跳过
@@ -371,14 +374,15 @@ def get_all_股票数据(
         code_list.append(code)
         # # 获取后复权股票数据
 
-    tz = gp.tz.__init_等地位_货币通胀()
+    tz = gp.tz.tz.__init_等地位_货币通胀()
+    tz2 = gp.tz.tz.__init_等地位_货币通胀()
 
     data_dict = {}
     print(f"开始加载 {len(code_list)} 只股票...")
 
     # 启动 joblib + loky 纯本地高速读取，12核拉满
     results = Parallel(n_jobs=10, backend="loky")(
-        delayed(read_one)(code, 开始时间, tz) for code in code_list
+        delayed(read_one)(code, 开始时间, tz, tz2) for code in code_list
     )
 
     # 完美过滤掉本地没有文件的 None 值
@@ -386,130 +390,6 @@ def get_all_股票数据(
 
     # print(f"成功合并了 {len(data_dict)} 只股票的数据")
     return data_dict
-
-
-def add_后复权数据(股票数据, 列名="hfq_close"):
-    """
-    针对你的新场景优化：
-    直接在原始数据上增加一列后复权数据。
-    支持传入：单个 DataFrame，或者 {code: DataFrame} 的字典。
-    """
-    # 1. 拆分数据流：如果是字典，提取出所有的 DataFrame；如果是单个 DataFrame，直接用列表包裹
-    if isinstance(股票数据, dict):
-        df_list = 股票数据.values()
-    else:
-        df_list = [股票数据]
-
-    # 2. 核心计算逻辑不变
-    for df in df_list:
-        if df.empty:
-            continue
-
-        首日数据 = df.iloc[0]
-        百分比 = 1.0
-        今日价格 = 上一日_收盘价 = 首日数据.pre_close
-
-        hfq_prices = []
-        for data in df.itertuples():
-            if data.pre_close != 上一日_收盘价:
-                百分比 *= 上一日_收盘价 / data.pre_close
-            今日价格 += data.change * 百分比
-            hfq_prices.append(今日价格)
-            上一日_收盘价 = data.close
-
-        # 原地添加新列
-        df[列名] = hfq_prices
-
-
-def add_后复权数据_2(股票数据, 列名="hfq"):
-    """
-    使用 Pandas 向量化计算，消灭 for 循环。
-    支持传入：单个 DataFrame，或者 {code: DataFrame} 的字典。
-    """
-    if isinstance(股票数据, dict):
-        df_list = 股票数据.values()
-    else:
-        df_list = [股票数据]
-
-    for df in df_list:
-        if df.empty:
-            continue
-
-        # --- 核心向量化计算逻辑 ---
-
-        # 1. 计算每一天的复权因子 (因子 = 上一日收盘价 / 今日昨收)
-        # df['close'].shift(1) 就是把收盘价整列往下移一行，相当于拿到了“上一日的收盘价”
-        # 第一行的上一日收盘价不存在，用今日的昨收 (pre_close) 补齐
-        last_close = df["close"].shift(1).fillna(df["pre_close"].iloc[0])
-
-        # 当 data.pre_close != 上一日_收盘价 时才发生变动，其余时间因子为 1.0
-        # np.where(条件, 满足条件的值, 不满足条件的值)
-        daily_factor = np.where(
-            df["pre_close"] != last_close, last_close / df["pre_close"], 1.0
-        )
-
-        # 2. 计算累计复权因子 (.cumprod() 是累计求积，瞬间替代了你的 百分比 *= ...)
-        cum_factor = daily_factor.cumprod()
-
-        # 3. 计算每日的后复权涨跌额 (今日涨跌幅 * 累计复权因子)
-        hfq_change = df["change"] * cum_factor
-
-        # 4. 最终后复权价 = 初始发行价 + 累计的后复权涨跌额 (.cumsum() 是累计求和)
-        df[列名] = df["pre_close"].iloc[0] + hfq_change.cumsum()
-
-
-def add_通胀(股票数据):
-    if isinstance(股票数据, dict):
-        df_list = 股票数据.values()
-    else:
-        df_list = [股票数据]
-
-    for df in df_list:
-        if df.empty:
-            continue
-        # 1. 正常获取通胀数据
-        开始日期 = str(df["trade_date"].iloc[0])
-        tz = gp.tz.get_等地位_货币通胀(开始日期)
-
-        # 2. 关键一步：把通胀数据做成字典，并将键（日期）全部强转为【int 整数】，确保和股票日期一致
-        # 如果你的 tz 日期在 index 上：
-        tz_mapping = {int(k): v for k, v in tz["temp_定基"].to_dict().items()}
-
-        # 3. 使用 map 映射。
-        # .ffill().bfill() 是灵魂，它能自动用前一天的通胀数据填满周末和节假日停牌的空缺！
-        tz_factor = df["trade_date"].map(tz_mapping).ffill().bfill()
-
-        # 4. 此时 tz_factor 是一列和 df 完全等长且对齐的数字，直接相乘，绝对有数据！
-        df["tz"] = df["hfq"] / tz_factor
-
-
-# def add_通胀(股票数据):
-#     if isinstance(股票数据, dict):
-#         df_list = list(股票数据.values())
-#     else:
-#         df_list = [股票数据]
-
-#     if not df_list or all(df.empty for df in df_list):
-#         return
-
-#     # 1. 【核心优化】移出循环！从所有股票中找到最早的开始日期，只获取一次通胀数据
-#     # 假设 trade_date 是 int 类型的 YYYYMMDD（例如 20200101）
-#     最早日期 = min(str(df["trade_date"].iloc[0]) for df in df_list if not df.empty)
-#     tz = gp.tz.get_等地位_货币通胀(最早日期)
-
-#     # 2. 【核心优化】移出循环！一次性生成全局通胀映射字典
-#     tz_mapping = {int(k): v for k, v in tz["temp_定基"].to_dict().items()}
-
-#     # 3. 进入循环，内部只做最高效的向量化计算
-#     for df in df_list:
-#         if df.empty:
-#             continue
-
-#         # 直接映射，此时 tz_mapping 已经在内存中准备好了，无需反复构建
-#         tz_factor = df["trade_date"].map(tz_mapping).ffill().bfill()
-
-#         # 向量化除法
-#         df["tz"] = df["hfq"] / tz_factor
 
 
 def get_后复权数据(股票数据列表):
@@ -545,42 +425,3 @@ def get_后复权数据(股票数据列表):
         return ret_data
     else:
         return ret_data[0]
-
-
-# if __name__ == "__main__":
-#     df = get_股票列表()
-
-#     # 筛选股票
-#     df = df[df["type"] == 1]
-#     print(f"股票数量: {len(df)} 只")
-
-#     # 筛选code的开头
-#     t = df[df["code"].str.startswith("sh.60")]
-#     print(f"code的开头 sh.60: {len(t)} 只")
-
-#     # 筛选code_name包含"*ST"的行, regex=False表示不使用正则表达式
-#     t = df[df["code_name"].str.contains("*ST", regex=False)]
-#     print(f"code_name包含 *ST: {len(t)} 只")
-
-#     # 筛选上市日期在2020年1月1日及以后的股票
-#     t = df[df["ipoDate"] >= "2020-01-01"]
-#     print(f"2020年1月1日及以后上市的股票数量: {len(t)} 只")
-
-#     # 将ipoDate列转换为日期类型
-#     df["ipoDate"] = pd.to_datetime(df["ipoDate"])
-
-#     # 按照上市日期排序
-#     df = df.sort_values(by="ipoDate")
-
-#     # 统计每个市场的股票数量
-#     t = df["code"].str[:2].value_counts()
-#     print(f"股票数量按市场分类:{t.to_dict()}")
-
-#     # 打印每列的数据类型
-#     # for col in df.columns:
-#     #     print(f"{col}: {df[col].dtype}")
-
-#     print(df.head())
-
-#     df = get_单个股票数据("sh.689009")
-#     print(df.head())
