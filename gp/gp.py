@@ -305,21 +305,45 @@ def read_one(code, 开始时间, tz, tz2):
             print(f"空数据 {code}")
             return code, None
 
-        # 添加后复权列
-        last_close = df["close"].shift(1).fillna(df["pre_close"].iloc[0])
-        daily_factor = np.where(
-            df["pre_close"] != last_close, last_close / df["pre_close"], 1.0
-        )
-        cum_factor = daily_factor.cumprod()
-        hfq_change = df["change"] * cum_factor
-        df["hfq"] = df["pre_close"].iloc[0] + hfq_change.cumsum()
+        # # 排序去重
+        # df = df.drop_duplicates(subset="trade_date", keep="last").sort_values(
+        #     "trade_date"
+        # )
 
-        # 筛选开始日期
+        # 添加后复权列，假设分红再投,且无税,无交易费
+        # 另外回购注销似乎不会触发除权，这就意味着无法复权，此时股价就会虚高于市值
+        # 股价就会虚高于市值,就意味着市值踏空
+        # last_close = df["close"].shift(1).fillna(df["pre_close"].iloc[0])
+        # daily_factor = np.where(
+        #     df["pre_close"] != last_close, last_close / df["pre_close"], 1.0
+        # )
+        # cum_factor = daily_factor.cumprod()
+        # hfq_change = df["change"] * cum_factor
+        # df["hfq"] = df["pre_close"].iloc[0] + hfq_change.cumsum()
+
+        df["hfq"] = df["pre_close"].iloc[0] * (df["close"] / df["pre_close"]).cumprod()
+
+        # 首日数据 = df.iloc[0]
+        # 上市发行价 = 首日数据.pre_close
+        # 百分比 = 1.0
+        # 今日价格 = 上市发行价
+        # 上一日_收盘价 = 上市发行价
+        # hfq = []
+        # for data in df.itertuples():
+        #     if data.pre_close != 上一日_收盘价:
+        #         百分比 *= 上一日_收盘价 / data.pre_close
+
+        #     今日价格 += data.change * 百分比
+        #     hfq.append(今日价格)
+
+        #     上一日_收盘价 = data.close
+        # df["hfq"] = hfq
+
+        # # 筛选开始日期
         df = df[df["trade_date"] >= 开始时间]
         开始时间 = df["trade_date"].min()
-        df.set_index("trade_date", inplace=True)
-
-        # print(f"{开始时间}  {code}")
+        df = df.set_index("trade_date")
+        # # print(f"{开始时间}  {code}")
 
         # 通胀校准到当天
         基准值 = tz.loc[开始时间, "定基增长率"]

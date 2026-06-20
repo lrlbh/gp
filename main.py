@@ -47,9 +47,9 @@ def test(df_list, 列名):
                 )
             ]
             # 筛选条件
-            if this < t_min * 1.05 and this * t2 < t_avg
+            if this < t_min * 1.05  # and this * t2 < t_avg
         }
-        if len(df_筛选后) >= 6:
+        if len(df_筛选后) >= 9:
             break
 
         if t2 <= 5:
@@ -64,13 +64,18 @@ def test(df_list, 列名):
     )
     f.write(f"{列名}\t起点日期: {date} \n")
     f.write("公司名称\t股票代码\t伪上市时间\t当前价\t最低价\t平均价\t当前\t低于平均\n")
-    for key in df_筛选后:
-        t_min = df_筛选后[key][列名].min()
-        avg = df_筛选后[key][列名].mean()
-        t_this = df_筛选后[key][列名].iloc[-1]
-        伪上市时间 = df_筛选后[key].index[0]
+    for key, df in sorted(
+        df_筛选后.items(),
+        key=lambda x: x[1][列名].mean() / x[1][列名].iloc[-1],
+        reverse=True,
+    ):
+        t_min = df[列名].min()
+        avg = df[列名].mean()
+        t_this = df[列名].iloc[-1]
+        伪上市时间 = df.index[0]
         name = 股票列表[key]
         code = key
+
         if len(name) <= 3:
             name += "  "
 
@@ -82,8 +87,9 @@ def test(df_list, 列名):
 
 
 test(df_list, "tz_等购买力")
-print("----------------------")
+test(df_list, "hfq")
 test(df_list, "tz_等地位")
+
 
 df_筛选后 = {
     key: value
@@ -105,4 +111,27 @@ f = open(
     encoding="utf-8",
 )
 f.write(f"等购买力,史低股数量: {len(df_筛选后)}\n\n\n")
+f.close()
+
+
+df_筛选后 = {
+    key: value
+    for key, value in df_list.items()
+    # 定义变量
+    for this, t_min, t_avg in [
+        (
+            value["hfq"].iloc[-1],
+            value["hfq"].min(),
+            value["hfq"].mean(),
+        )
+    ]
+    # 筛选条件
+    if this < t_min * 1.05
+}
+f = open(
+    "test/" + datetime.now().strftime("%Y-%m-%d_%H-%M") + ".txt",
+    "a",
+    encoding="utf-8",
+)
+f.write(f"hfq,史低股数量: {len(df_筛选后)}\n\n\n")
 f.close()
