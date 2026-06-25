@@ -311,6 +311,7 @@ def read_one(code, 开始时间, tz, tz2):
         # )
 
         # 添加后复权列，假设分红再投,且无税,无交易费
+        # 借壳重组之类可能还是会有一定问题,用市值评估也不靠谱
         # 另外回购注销似乎不会触发除权，这就意味着无法复权，此时股价就会虚高于市值
         # 股价就会虚高于市值,就意味着市值踏空
         # last_close = df["close"].shift(1).fillna(df["pre_close"].iloc[0])
@@ -384,6 +385,9 @@ def get_all_股票数据(
         code = row.ts_code
 
         if row.name.startswith(("退市", "*ST", "ST")):
+            continue
+
+        if row.name.endswith(("退")):
             continue
 
         # 部分股票没有数据，跳过
