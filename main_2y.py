@@ -41,7 +41,6 @@ df_list = gp.gp.get_all_股票数据(date)
     trade_date=最后交易日,
     fields=[],
 )
-追踪几个 = 10
 exclude_starts = ("TS", "T", "300", "688", "301", "900", "200")  # 不要的开头
 exclude_ends = ("BJ",)  # 不要结尾
 条件_开头不含 = ~每日指标["ts_code"].str.startswith(exclude_starts)
@@ -60,51 +59,23 @@ exclude_ends = ("BJ",)  # 不要结尾
 每日指标["bs"] = (每日指标["pb"] + 每日指标["ps"]) / 2
 每日指标["bs_ttm"] = (每日指标["pb"] + 每日指标["ps"] + 每日指标["ps_ttm"]) / 3
 
-ebs = 每日指标.sort_values(by="ebs", ascending=True).head(追踪几个)["ts_code"].tolist()
+ebs = 每日指标.sort_values(by="ebs", ascending=True).head(10)["ts_code"].tolist()
 
 ebs_ttm = (
-    每日指标.sort_values(by="ebs_ttm", ascending=True)
-    .head(追踪几个)["ts_code"]
-    .tolist()
+    每日指标.sort_values(by="ebs_ttm", ascending=True).head(10)["ts_code"].tolist()
 )
-bs = 每日指标.sort_values(by="bs", ascending=True).head(追踪几个)["ts_code"].tolist()
-bs_ttm = (
-    每日指标.sort_values(by="bs_ttm", ascending=True).head(追踪几个)["ts_code"].tolist()
-)
-pb = 每日指标.sort_values(by="pb", ascending=True).head(追踪几个)["ts_code"].tolist()
-ps = 每日指标.sort_values(by="ps", ascending=True).head(追踪几个)["ts_code"].tolist()
-ps_ttm = (
-    每日指标.sort_values(by="ps_ttm", ascending=True).head(追踪几个)["ts_code"].tolist()
-)
-pe = 每日指标.sort_values(by="pe", ascending=True).head(追踪几个)["ts_code"].tolist()
-pe_ttm = (
-    每日指标.sort_values(by="pe_ttm", ascending=True).head(追踪几个)["ts_code"].tolist()
-)
-
-dv = (
-    每日指标.sort_values(by="dv_ratio", ascending=False)
-    .head(追踪几个)["ts_code"]
-    .tolist()
-)
-dv_ttm = (
-    每日指标.sort_values(by="dv_ttm", ascending=False)
-    .head(追踪几个)["ts_code"]
-    .tolist()
-)
+bs = 每日指标.sort_values(by="bs", ascending=True).head(10)["ts_code"].tolist()
+bs_ttm = 每日指标.sort_values(by="bs_ttm", ascending=True).head(10)["ts_code"].tolist()
+pb = 每日指标.sort_values(by="pb", ascending=True).head(10)["ts_code"].tolist()
+ps = 每日指标.sort_values(by="ps", ascending=True).head(10)["ts_code"].tolist()
+ps_ttm = 每日指标.sort_values(by="ps_ttm", ascending=True).head(10)["ts_code"].tolist()
 
 
 已收录 = []
 
 
 def test(
-    df_list,
-    列名,
-    重复收录=False,
-    追踪code=[],
-    忽略code=[],
-    忽略均值=2.7,
-    低价阈值=1.05,
-    提示头部文字="",
+    df_list, 列名, 重复收录=False, 追踪code=[], 忽略code=[], 忽略均值=2.7, 低价阈值=1.05
 ):
     低于史地多少 = 0.03
 
@@ -140,8 +111,6 @@ def test(
     )
 
     # 写入基础信息
-    if 提示头部文字 != "":
-        f.write(提示头部文字 + "\n")
     f.write(
         f"{列名},史低股数量: {len(df_筛选后)}\t起点日期: {date}\t史地阈值: {低价阈值} 平均值阈值: {忽略均值}\t重复收录: {重复收录}\n"
     )
@@ -242,184 +211,15 @@ def test(
     f.close()
 
 
-def test_2(
-    df_list,
-    列名,
-    追踪code=[],
-    忽略code=[],
-    提示头部文字="",
-):
-    # 打开文件
-    f = open(
-        "test/" + datetime.now().strftime("%Y-%m-%d_%H-%M") + ".txt",
-        "a",
-        encoding="utf-8",
-    )
-
-    # 写入基础信息
-    if 提示头部文字 != "":
-        f.write(提示头部文字 + "\n")
-
-    # 写入列名
-    f.write(
-        "\t".join(
-            [
-                "公司名称",
-                "股票代码",
-                "伪上市时间",
-                # "当前价",
-                # "最低价",
-                # "平均价",
-                "实价",
-                "理论实价",
-                "当前",
-            ]
-        )
-        + "\n"
-    )
-
-    for key in 追踪code:
-        this_每日指标 = 每日指标.loc[每日指标["ts_code"] == key].iloc[0]
-        this_公司信息 = 公司信息.loc[公司信息["ts_code"] == key].iloc[0]
-
-        if key not in df_list:
-            continue
-        df = df_list[key]
-        最低价 = df[列名].min()
-        当前价 = df[列名].iloc[-1]
-        上市时间 = df.index[0]
-        公司名 = this_公司信息["name"]
-        公司名 = 公司名 + "  " if len(公司名) <= 3 else 公司名
-        股票代码 = key
-        实际价格 = df["close"].iloc[-1]
-        高于史地多少 = 当前价 / 最低价
-        多少价格史地 = 实际价格 / 高于史地多少
-
-        提示信息 = ""
-        if 股票代码 in no_git.msg:
-            提示信息 = "\n\t" + no_git.msg[股票代码]
-
-        t_str = (
-            f"{公司名}\t"
-            + f"{股票代码}\t"
-            + f"{上市时间}\t"
-            # + f"{t_this:.2f}\t"
-            # + f"{t_min:.2f}\t"
-            # + f"{avg:.2f}\t"
-            + f"{实际价格:.2f}\t"
-            + f"{多少价格史地:.3f}\t"
-            + f"{高于史地多少:.2f}\t"
-            # + f"{购入金额:.0f}"
-            + f"\n\t实控人: {this_公司信息.act_name}-->{this_公司信息.act_ent_type}\t"
-            + f"地域: {this_公司信息.area}\t"
-            + f"行业: {this_公司信息.industry}\t"
-            + f"股息: {this_每日指标.dv_ratio:.2f}%-->{this_每日指标.dv_ttm:.2f}%"
-            + f"\n\t总值: {this_每日指标.total_mv / 10000:.2f}\t"
-            + f"流值: {this_每日指标.circ_mv / 10000:.2f}\t"
-            + f"市净b: {this_每日指标.pb:.2f}\t"
-            + f"市销s: {this_每日指标.ps:.2f}-->{this_每日指标.ps_ttm:.2f}\t"
-            + f"市盈e: {this_每日指标.pe:.2f}-->{this_每日指标.pe_ttm:.2f}\t"
-            + f"\n\tebs:{this_每日指标.ebs:.2f}\t"
-            + f"\tebs_ttm:{this_每日指标.ebs_ttm:.2f}\t"
-            + f"\tbs:{this_每日指标.bs:.2f}\t"
-            + f"\tbs_ttm:{this_每日指标.bs_ttm:.2f}\t"
-            + f"{提示信息}"
-            + "\n\n"
-        )
-
-        f.write(t_str)
-
-    f.write("\n\n\n\n\n\n")
-    f.close()
-
-
-# 史地股票
-test(df_list, "tz_等购买力", 低价阈值=1.01, 忽略均值=1.5, 忽略code=no_git.no_code)
-test(df_list, "tz_等购买力", 低价阈值=1.03, 忽略均值=1.5, 忽略code=no_git.no_code)
-test(df_list, "tz_等购买力", 低价阈值=1.05, 忽略均值=1.5, 忽略code=no_git.no_code)
-test(df_list, "tz_等购买力", 低价阈值=1.10, 忽略均值=1.5, 忽略code=no_git.no_code)
-test(df_list, "tz_等购买力", 低价阈值=1.15, 忽略均值=1.5, 忽略code=no_git.no_code)
-test(df_list, "tz_等购买力", 低价阈值=1.20, 忽略均值=1, 忽略code=no_git.no_code)
-
-# 显示指定股票
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=no_git.追踪code,
-    提示头部文字="手动追踪的股票",
-)
-
-
 # PE PB PS 股票
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=ebs,
-    提示头部文字="PE PB PS 综合头部",
-)
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=ebs_ttm,
-    提示头部文字="PE PB PS 加上ttm权重的综合头部",
-)
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=bs,
-    提示头部文字="PB PS 综合头部",
-)
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=bs_ttm,
-    提示头部文字="PB PS 加上ttm权重的综合头部",
-)
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=pb,
-    提示头部文字="pb 头部",
-)
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=ps,
-    提示头部文字="ps 头部",
-)
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=ps_ttm,
-    提示头部文字="ps_ttm 头部",
-)
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=pe,
-    提示头部文字="pe 头部",
-)
+test(df_list, "tz_等购买力", 低价阈值=0.1, 追踪code=ebs, 重复收录=True)
+test(df_list, "tz_等购买力", 低价阈值=0.1, 追踪code=ebs_ttm, 重复收录=True)
+test(df_list, "tz_等购买力", 低价阈值=0.1, 追踪code=bs, 重复收录=True)
+test(df_list, "tz_等购买力", 低价阈值=0.1, 追踪code=bs_ttm, 重复收录=True)
+test(df_list, "tz_等购买力", 低价阈值=0.1, 追踪code=pb, 重复收录=True)
+test(df_list, "tz_等购买力", 低价阈值=0.1, 追踪code=ps, 重复收录=True)
+test(df_list, "tz_等购买力", 低价阈值=0.1, 追踪code=ps_ttm, 重复收录=True)
 
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=pe_ttm,
-    提示头部文字="pe_ttm 头部",
-)
-
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=dv,
-    提示头部文字="股息 头部",
-)
-
-test_2(
-    df_list,
-    "tz_等购买力",
-    追踪code=dv_ttm,
-    提示头部文字="股息_ttm 头部",
-)
 
 # 史地股票,hfq
 # test(df_list, "hfq", 低价阈值=1.20, 重复收录=True, 忽略均值=1, 忽略code=no_git.no_code)

@@ -118,6 +118,10 @@ def 更新():
             未交易列表.append(code)
             continue
 
+        # 忽略股票
+        # if row.ts_code in ["001248.SZ"]:
+        #     continue
+
         # 部分股票没有数据，跳过
         # 部分股票代码,被回收复用,TS开头
         if code.startswith("TS"):
@@ -374,7 +378,7 @@ def read_one(code, 开始时间, tz, tz2):
 
 def get_all_股票数据(
     开始时间=1990101,
-    start=["TS", "T", "300", "688", "301"],
+    start=["TS", "T", "300", "688", "301", "900", "200"],
     end=["BJ"],
     status=["D", "P", "G"],
 ):

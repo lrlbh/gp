@@ -13,6 +13,7 @@ from datetime import datetime
 import gp.tz.tz
 import gp.tz.r人口
 from matplotlib.widgets import Slider
+import no_git
 
 plt.rcParams["font.sans-serif"] = ["SimHei"]  # Windows/Linux 推荐
 plt.rcParams["axes.unicode_minus"] = False
@@ -21,7 +22,8 @@ plt.rcParams["axes.unicode_minus"] = False
 plt.figure(figsize=(10, 5))
 
 
-code = "000785.SZ"
+code = "000498.SZ"
+# code = no_git.no_code[6]
 date = 19900201
 window_size = 1000000
 
@@ -51,9 +53,14 @@ plt.axhline(
 
 # 等购买力 动态均线
 多少交易日 = 100000
-df["滚动均线"] = df["tz_等购买力"].rolling(window=多少交易日, min_periods=1).mean()
-df["滚动均线"] /= 2.7
-plt.plot(df["滚动均线"], label=f"滚动均线 -> {多少交易日}")
+df["滚动均线_买"] = df["tz_等购买力"].rolling(window=多少交易日, min_periods=1).mean()
+df["滚动均线_买"] /= 3
+plt.plot(df["滚动均线_买"], label=f"滚动均线_买 -> {多少交易日}")
+
+多少交易日 = 250
+df["滚动均线_卖"] = df["tz_等购买力"].rolling(window=多少交易日, min_periods=1).mean()
+df["滚动均线_卖"] *= 2.4
+plt.plot(df["滚动均线_卖"], label=f"滚动均线_卖 -> {多少交易日}")
 
 # 后复权力数据
 plt.plot(df["hfq"], color="red", label=f"后复权 -> {df['hfq'].mean():.2f}")
@@ -86,15 +93,15 @@ plt.scatter(idx, val, color="blue")
 plt.text(idx, val, f"{val:.2f}\n{date_str}", ha="center", va="bottom")
 
 
-# # 等购买力数据
-# plt.plot(df["tz_等地位"], color="g", label=f"tz_等地位 -> {df['tz_等地位'].mean():.2f}")
-# plt.axhline(
-#     y=df["tz_等地位"].mean(),
-#     color="g",
-#     ls="--",
-#     alpha=0.6,
-#     # label=f"tz_等地位 AVG: {ddw_avg:.2f}",
-# )
+# 等地位数据
+plt.plot(df["tz_等地位"], color="g", label=f"tz_等地位 -> {df['tz_等地位'].mean():.2f}")
+plt.axhline(
+    y=df["tz_等地位"].mean(),
+    color="g",
+    ls="--",
+    alpha=0.6,
+    # label=f"tz_等地位 AVG: {ddw_avg:.2f}",
+)
 
 
 # 获取每日指标
@@ -158,7 +165,7 @@ rolling_min = df["tz_等购买力"].rolling(window=window_size, min_periods=1).m
 rolling_mean = df["tz_等购买力"].rolling(window=window_size, min_periods=1).mean()
 滚动_mean = df["tz_等购买力"].rolling(window=250, min_periods=1).mean()
 condition1 = df["tz_等购买力"] <= (rolling_min * 1.05)  # 滚动 是否最小值
-condition2 = (rolling_min * 2.7) <= rolling_mean  # 是否小于历史平均值
+condition2 = (rolling_min * 3) <= rolling_mean  # 是否小于历史平均值
 # condition3 = (rolling_min * 1.5) < 滚动_mean  # 是否小于250天平均值
 df["is_target"] = condition1 & condition2  # & condition3  # 添加标记
 
@@ -176,11 +183,11 @@ highlight_scatter = plt.scatter(
 
 # ==================== 新增：标记大于平均2倍的点 ====================
 # 这里的“平均”我用的是你定义的 90天滚动均线_2（你可以根据需求换成其他均线）
-多少交易日 = 125
+多少交易日 = 250
 df["滚动均线_2"] = df["tz_等购买力"].rolling(window=多少交易日, min_periods=1).mean()
 
 # 定义新条件：当前值 > 2 * 90天滚动均线
-df["is_high_signal"] = df["tz_等购买力"] > (df["滚动均线_2"] * 2.1)
+df["is_high_signal"] = df["tz_等购买力"] > (df["滚动均线_2"] * 2.4)
 
 # 筛选新信号的数据
 high_dates = df.index[df["is_high_signal"]]
