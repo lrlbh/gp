@@ -12,7 +12,6 @@ import gp.gp
 from datetime import datetime
 import gp.tz.tz
 import gp.tz.r人口
-from matplotlib.widgets import Slider
 import no_git
 
 plt.rcParams["font.sans-serif"] = ["SimHei"]  # Windows/Linux 推荐
@@ -22,7 +21,7 @@ plt.rcParams["axes.unicode_minus"] = False
 plt.figure(figsize=(10, 5))
 
 
-code = "000498.SZ"
+code = "600660.SH"
 # code = no_git.no_code[6]
 date = 19900201
 window_size = 1000000
