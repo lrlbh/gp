@@ -30,7 +30,7 @@ code = [
 每日指标 = gp.pub.pro.daily_basic(
     # trade_date=datetime.now().strftime("%Y%m%d"),
     # ts_code="600660.SH",
-    ts_code="600309.SH",
+    ts_code="603711.SH",
     # fields=[],
 )
 每日指标["trade_date"] = pd.to_datetime(每日指标["trade_date"], format="%Y%m%d")

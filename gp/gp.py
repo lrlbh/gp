@@ -119,7 +119,7 @@ def 更新():
             continue
 
         # 忽略股票
-        # if row.ts_code in ["001248.SZ"]:
+        # if row.ts_code in ["688836.SH"]:
         #     continue
 
         # 部分股票没有数据，跳过

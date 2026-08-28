@@ -21,7 +21,8 @@ plt.rcParams["axes.unicode_minus"] = False
 plt.figure(figsize=(10, 5))
 
 
-code = "600660.SH"
+# code = "002739.SZ"
+code = "603711.SH"
 # code = no_git.no_code[6]
 date = 19900201
 window_size = 1000000

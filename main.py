@@ -1,5 +1,4 @@
 import math
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
@@ -11,7 +10,6 @@ import gp.gp
 from datetime import datetime
 import gp.tz.tz
 import gp.tz.r人口
-from collections import defaultdict
 import no_git
 
 # tz2.index = pd.to_datetime(tz2.index, format="%Y%m%d")
@@ -22,6 +20,7 @@ plt.rcParams["axes.unicode_minus"] = False
 # 1 / 0
 
 date = 19900201
+# date = 20240101
 
 
 # 获取完整股票数据
@@ -93,6 +92,8 @@ dv_ttm = (
 )
 
 
+file_name = "test/" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".txt"
+
 已收录 = []
 
 
@@ -134,7 +135,7 @@ def test(
 
     # 打开文件
     f = open(
-        "test/" + datetime.now().strftime("%Y-%m-%d_%H-%M") + ".txt",
+        file_name,
         "a",
         encoding="utf-8",
     )
@@ -222,7 +223,7 @@ def test(
             + f"\n\t实控人: {this_公司信息.act_name}-->{this_公司信息.act_ent_type}\t"
             + f"地域: {this_公司信息.area}\t"
             + f"行业: {this_公司信息.industry}\t"
-            + f"股息: {this_每日指标.dv_ratio:.2f}%-->{this_每日指标.dv_ratio:.2f}%"
+            # + f"股息: {this_每日指标.dv_ratio:.2f}%-->{this_每日指标.dv_ttm:.2f}%"
             + f"\n\t总值: {this_每日指标.total_mv / 10000:.2f}\t"
             + f"流值: {this_每日指标.circ_mv / 10000:.2f}\t"
             + f"市净b: {this_每日指标.pb:.2f}\t"
@@ -251,7 +252,7 @@ def test_2(
 ):
     # 打开文件
     f = open(
-        "test/" + datetime.now().strftime("%Y-%m-%d_%H-%M") + ".txt",
+        file_name,
         "a",
         encoding="utf-8",
     )
@@ -281,6 +282,8 @@ def test_2(
     for key in 追踪code:
         this_每日指标 = 每日指标.loc[每日指标["ts_code"] == key].iloc[0]
         this_公司信息 = 公司信息.loc[公司信息["ts_code"] == key].iloc[0]
+        # if this_公司信息.industry in ["建筑工程", "银行"]:
+        #     continue
 
         if key not in df_list:
             continue
@@ -335,6 +338,8 @@ def test_2(
 
 # 史地股票
 test(df_list, "tz_等购买力", 低价阈值=1.01, 忽略均值=1.5, 忽略code=no_git.no_code)
+test(df_list, "tz_等购买力", 低价阈值=1.015, 忽略均值=1.5, 忽略code=no_git.no_code)
+test(df_list, "tz_等购买力", 低价阈值=1.02, 忽略均值=1.5, 忽略code=no_git.no_code)
 test(df_list, "tz_等购买力", 低价阈值=1.03, 忽略均值=1.5, 忽略code=no_git.no_code)
 test(df_list, "tz_等购买力", 低价阈值=1.05, 忽略均值=1.5, 忽略code=no_git.no_code)
 test(df_list, "tz_等购买力", 低价阈值=1.10, 忽略均值=1.5, 忽略code=no_git.no_code)
