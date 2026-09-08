@@ -391,8 +391,11 @@ def get_all_股票数据(
         if row.name.startswith(("退市", "*ST", "ST")):
             continue
 
-        if row.name.endswith(("退")):
+        if row.name.endswith(("退",)):
             continue
+
+        # if code in ["301688.SZ"]:
+        #     continue
 
         # 部分股票没有数据，跳过
         # 部分股票代码,被回收复用,TS开头
